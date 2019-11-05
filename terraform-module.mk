@@ -1,3 +1,5 @@
+-include $(TERRAFORM_MAKE_LIB_HOME)/terraform-module-$(TERRAFORM_PROVIDER).mk
+
 # terraform executable. set as env variable to overwrite.
 NC=\033[0m
 RED=\033[0;31m
@@ -11,10 +13,20 @@ ifeq ($(TERRAFORM),)
 $(error Terraform cmd not found: $(TERRAFORM_CMD))
 endif
 
+PROVIDER_FILE ?= "terraform-provider-tmp.tf"
+
+# make targets with -default suffix extenable without warnings
+%: %-default
+	@ true
+
+# should install plugins that cannot be installed by terraform init
+prepare-provider-default:
+	@ true
+
 # clean terraform working dir
 clean:
 	@rm -Rf .terraform
-	@rm -f provider-tmp.tf
+	@rm -f $(PROVIDER_FILE)
 
 # clean modules. need to call make init or make update modules after this
 clean-modules:
@@ -32,20 +44,16 @@ update-modules: clean-modules
 fmt:
 	@$(TERRAFORM) fmt -recursive
 
-# prepare validate wich needs a region set in aws provider
-validate-prepare:
-	$(shell if [ "$(PROVIDER)" == "aws" ]; then echo "provider \"aws\" { region = \"eu-central-1\" }" > provider-tmp.tf; fi)
-
 # check terraform code
-validate: validate-prepare validate-code
+validate: prepare-provider validate-code
 	@echo "==> Checking that code complies with terraform fmt requirements..."
 	@$(TERRAFORM) fmt -check -recursive || (echo; echo "$(RED)Please correct the files above$(NC)"; echo; exit 1)
 	@echo "==> $(GREEN)Ok.$(NC)"
 
 # validate code
-validate-code: validate-prepare init
+validate-code: prepare-provider init
 	@$(TERRAFORM) validate
-	@rm -f provider-tmp.tf
+	@rm -f $(PROVIDER_FILE)
 
 # clean plugins and moules before init
 force-init: clean init

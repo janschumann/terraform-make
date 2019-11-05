@@ -64,6 +64,3 @@ init: CURRENT_PROFILE = $(shell if [ -f $(LOCAL_STATE_FILE) ]; then cat $(LOCAL_
 init:
 	$(shell if [ "$(SKIP_BACKEND)" == "false" ] && ([ "$(IS_DEPLOYMENT)" == "true" ] || [ "$(CURRENT_PROFILE)" != "$(AWS_PROFILE)" ] || [ "$(CURRENT_STATE_KEY)" != "$(STATE_KEY)" ]); then echo $(MAKE) force-init; fi)
 
-ensure-backend:
-	@echo "terraform { \n  backend \"s3\" {} \n}" > backend.tf
-	@if [ "$(SKIP_BACKEND)" == "true" ]; then rm backend.tf; fi

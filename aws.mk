@@ -2,7 +2,7 @@
 ###
 ###
 
-AWS_SESSION_MAKEFILE_DIR = $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
+BACKEND_TYPE ?= s3
 
 ### aws cli
 
@@ -45,17 +45,23 @@ AWS_ROLE_NAME ?= $(AWS_DEFAULT_ROLE_NAME)
 AWS_PROFILE ?= $(ORGANISATION)-$(ACCOUNT)-$(ENVIRONMENT)
 PROVIDER_TERRAFORM_ARGS = -var 'default_profile=$(AWS_PROFILE)'
 
+ifeq ($(IS_DEPLOYMENT),true)
+	AWS_PROFILE_ARG =
+else
+	AWS_PROFILE_ARG = --profile $(AWS_PROFILE)
+endif
+
 ifeq ($(MIN_SESSION_AGE),)
 	MIN_SESSION_AGE = 15
 endif
 
 OS := $(shell uname)
 ifeq ($(OS),Darwin)
-	DATE = $(shell gdate --utc --date "now" +"%Y-%m-%d-%H-%M-%S")
 	MIN_PERSIST = $(shell gdate --utc --date "now +$(MIN_SESSION_AGE)min" +"%Y-%m-%dT%H:%M:%SZ")
+	DATE = $(shell gdate --utc --date "now" +"%Y-%m-%d-%H-%M-%S")
 else
-	DATE = $(shell date --utc --date "now" +"%Y-%m-%d-%H-%M-%S")
-	MIN_PERSIST = $(shell date --utc --date "now +$(MIN_SESSION_AGE)min" +"%Y-%m-%dT%H:%M:%SZ")
+	MIN_PERSIST = $(shell date --utc -D "+$(MIN_SESSION_AGE)min" +"%Y-%m-%dT%H:%M:%SZ")
+	DATE = $(shell date --utc -D +"0min" +"%Y-%m-%d-%H-%M-%S")
 endif
 
 # the path of the current plan for this region and environment
@@ -80,11 +86,13 @@ EXPIRE = $(shell aws --profile $(ORGANISATION)-$(SESSION_TARGET_PROFILE) configu
 IS_EXPIRED ?= $(shell if [[ -z $(EXPIRE) || $(EXPIRE) < $(MIN_PERSIST) ]] && [ "$(REGION)" != "cn-north-1" ] && [ "$(IS_DEPLOYMENT)" != "true" ]; then echo 1; else echo 0; fi)
 
 verify-aws:
-	$(shell date --version | grep "GNU" > /dev/null || echo "$(RED)This toolset relies on GNU date. Please use GNU utils (brew install coreutils on mac os)$(NC)"; exit 1)
 	@if [ -z "$(ORGANISATION)" ]; then echo "$(RED)Please define an ORGANISATION$(NC)"; exit 1; fi
 	@if [ -z "$(ACCOUNT)" ]; then echo "$(RED)Please define an ACCOUNT$(NC)"; exit 1; fi
 	@if [ -z "$(ENVIRONMENT)" ]; then echo "$(RED)Please define an ENVIRONMENT$(NC)"; exit 1; fi
 	@command -v $(AWS) > /dev/null || echo "$(RED)aws cli not installed$(NC)"
+
+show-account-id: verify-account-id
+	@echo $(ACCOUNT_ID)
 
 verify-account-id:
 	@if [ -z "$(ACCOUNT_ID)" ]; then echo "$(RED)Please define an ACCOUNT ID$(NC)"; exit 1; fi
@@ -99,10 +107,10 @@ verify-active-session:
 session: access-$(AWS_ROLE_NAME)
 
 access-$(AWS_ROLE_NAME):
-	@if [ 1 -eq $(IS_EXPIRED) ]; then $(AWS_SESSION_MAKEFILE_DIR)aws-session.sh -o $(ORGANISATION) -p $(SESSION_TARGET_PROFILE) -r $(AWS_ROLE_NAME) $(AWS_SESSION_VERBOSE_ARG); fi
+	@if [ 1 -eq $(IS_EXPIRED) ]; then $(TERRAFORM_MAKE_LIB_HOME)/aws-session.sh -o $(ORGANISATION) -p $(SESSION_TARGET_PROFILE) -r $(AWS_ROLE_NAME) $(AWS_SESSION_VERBOSE_ARG); fi
 
 show-access-cmd:
-	@echo $(AWS_SESSION_MAKEFILE_DIR)aws-session.sh -o $(ORGANISATION) -p $(SESSION_TARGET_PROFILE) -r $(AWS_ROLE_NAME)
+	@echo $(TERRAFORM_MAKE_LIB_HOME)/aws-session.sh -o $(ORGANISATION) -p $(SESSION_TARGET_PROFILE) -r $(AWS_ROLE_NAME)
 
 reset-iam-config: IAM_USER ?= $(USER)
 reset-iam-config: verify-aws verify-account-id
@@ -129,6 +137,3 @@ delete-login-profile: verify-aws
 
 create-login-profile: verify-aws
 	@$(AWS) --profile ${ORGANISATION}-${ACCOUNT}-${ENVIRONMENT} iam create-login-profile --user-name "$(IAM_USER)" --password-reset-required --password "$(PASSWORD)"
-
-debug: debug-default
-	echo foo bar baz

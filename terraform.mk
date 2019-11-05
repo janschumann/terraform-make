@@ -37,9 +37,8 @@
 ###	  - ensure-backend            => create backend.tf file containing the backend decalration
 ###   - backup-state			  => will be called befor modifying the state.
 ###   - debug			          => Add some variable values to debug oputput
+###   - before-state-modification => will be called before all targets that modify the state (refresh, plan, apply)
 ###
-###
-
 
 ###
 ###
@@ -82,6 +81,25 @@ SKIP_BACKEND ?= false
 TERRAFORM_STATE_LOCK ?= true
 ifeq ($(SKIP_BACKEND),true)
 	TERRAFORM_STATE_LOCK = false
+	BACKEND_TYPE =
+endif
+
+ifeq ($(VERBOSE),true)
+	VERBOSE := true
+	VERBOSE_ARG :=
+	SILENT := false
+else
+	VERBOSE := false
+	VERBOSE_ARG := &> /dev/null
+	SILENT ?= false
+endif
+
+ifeq ($(SILENT),true)
+	SILENT := true
+	SILENT_ARG := &> /dev/null
+else
+	SILENT := false
+	SILENT_ARG :=
 endif
 
 # indicates a deployment
@@ -139,6 +157,9 @@ ifeq ($(ENVIRONMENT),default)
 	LOCAL_STATE_FILE = terraform.tfstate
 endif
 
+-include $(TERRAFORM_MAKE_LIB_HOME)/$(TERRAFORM_PROVIDER).mk
+-include $(TERRAFORM_MAKE_LIB_HOME)/terraform-backend-$(BACKEND_TYPE).mk
+
 debug-default:
 	@echo ENVIRONMENT=$(ENVIRONMENT)
 	@echo VAR_FILE=$(VAR_FILE)
@@ -149,8 +170,11 @@ debug-default:
 	@echo CURRENT_PLAN=$(CURRENT_PLAN)
 	@echo PLAN=$(PLAN)
 	@echo LOCAL_STATE_FILE=$(LOCAL_STATE_FILE)
+	@echo STATE_KEY=$(STATE_KEY)
 	@echo IS_DEPLOYMENT=$(IS_DEPLOYMENT)
 	@echo SKIP_BACKEND=$(SKIP_BACKEND)
+	@echo BACKEND_TYPE=$(BACKEND_TYPE)
+	@echo VERBOSE_ARG=$(VERBOSE_ARG)
 ifeq ($(VERBOSE),true)
 	@echo TERRAFORM_CMD=$(TERRAFORM_CMD)
 	@echo TERRAFORM=$(TERRAFORM)
@@ -185,7 +209,12 @@ ensure-backend-default:
 session-default:
 	@ true
 
+# backup the state
 backup-state-default:
+	@  true
+
+# will be called before all targets that modify the state (refresh, plan, apply)
+before-state-modification-default:
 	@ true
 
 ###
@@ -231,8 +260,8 @@ clean-terraform-state:
 # ensure terraform needs to re-init
 # modules and plgins will not be removed
 clean-terraform:
-	@if [ -d $(TERRAFORM_CACHE_DIR) ]; then find $(TERRAFORM_CACHE_DIR) -type f -not -name $(TERRAFORM_CACHE_DIR) -not -name 'plugins' -not -name 'modules' -maxdepth 1 -delete; fi
-	@rm -rf backend.tf
+	@if [ -d $(TERRAFORM_CACHE_DIR) ]; then find $(TERRAFORM_CACHE_DIR) -maxdepth 1 -type f -not -name $(TERRAFORM_CACHE_DIR) -not -name 'plugins' -not -name 'modules' -delete; fi
+	@rm -rf exit_status.txt
 
 # force cleanup plans and terraform cache
 force-clean-terraform: clean-terraform clean-terraform-state
@@ -251,7 +280,7 @@ endif
 
 # force re-initialization of terraform state
 force-init: clean-terraform update-modules install-community-plugins session ensure-backend
-	$(TERRAFORM) init $(TF_ARGS_INIT)
+	$(TERRAFORM) init $(TF_ARGS_INIT) $(SILENT_ARG)
 
 # if the local state file is missing or a deployment is in progress, we need to initialize
 # this target can be extended by backends
@@ -260,7 +289,7 @@ init-default: session
 
 # update modules
 update-modules:
-	$(TERRAFORM) get -update=true
+	$(TERRAFORM) get -update=true $(SILENT_ARG)
 
 # create a new workspace
 create-workspace: session init
@@ -268,7 +297,7 @@ create-workspace: session init
 
 # ensure workspace selected
 ensure-workspace: session init verify-active-session ensure-backend
-	@if [ "$(shell $(TERRAFORM) workspace show)" != "$(ENVIRONMENT)" ]; then $(TERRAFORM) workspace select $(ENVIRONMENT); fi
+	@if [ "$(shell $(TERRAFORM) workspace show)" != "$(ENVIRONMENT)" ]; then $(TERRAFORM) workspace select $(ENVIRONMENT) $(SILENT_ARG); fi
 
 # list configured workspaces
 list-configured-workspaces:
@@ -296,11 +325,10 @@ TF_ARGS = $(TF_ARGS_DEFAULT_VAR_FILE) $(TF_ARGS_VAR_FILE) $(TF_ARGS_VAR_IS_DEPLO
 TF_ARGS_PLAN = $(TF_ARGS_LOCK) $(TF_ARGS)
 
 # create a new plan, if not exists
-plan: check-plan-missing session ensure-workspace
+plan: check-plan-missing session ensure-workspace before-state-modification
 	@rm -f exit_code.txt
-	$(TERRAFORM) plan $(TF_ARGS_PLAN) -out=$(PLAN_OUT)
+	$(TERRAFORM) plan $(TF_ARGS_PLAN) -out=$(PLAN_OUT) $(SILENT_ARG)
 	@echo $(PLAN_OUT) > $(CURRENT_PLAN)
-	@echo ""
 	@echo "$(GREEN)Plan created at $(YELLOW)$(PLAN_OUT)$(GREEN) and made current.$(NC)"
 	@echo "$(GREEN)Apply with 'make apply'$(NC)"
 	@echo "$(GREEN)Dismiss with 'make dismiss-plan'$(NC)"
@@ -338,7 +366,7 @@ else
 endif
 
 # create a destructive plan
-plan-destroy: check-plan-missing session ensure-workspace
+plan-destroy: check-plan-missing session ensure-workspace before-state-modification
 	$(TERRAFORM) plan $(TF_ARGS_PLAN) -out=$(PLAN_OUT) -destroy
 	@echo $(PLAN_OUT) > $(CURRENT_PLAN)
 	@echo ""
@@ -360,13 +388,13 @@ endif
 
 
 # apply plan
-apply: check-plan-exists prompt-for-production session ensure-workspace backup-state
+apply: check-plan-exists prompt-for-production session ensure-workspace backup-state before-state-modification
 ifeq ($(PLAN),$(CURRENT_PLAN))
-	$(TERRAFORM) apply $(TF_ARGS_LOCK) $(CURRENT_PLAN_FILE)
+	$(TERRAFORM) apply $(TF_ARGS_LOCK) $(CURRENT_PLAN_FILE) $(SILENT_ARG)
 	@rm $(CURRENT_PLAN_FILE)
 	@rm $(CURRENT_PLAN)
 else
-	$(TERRAFORM) apply $(TF_ARGS_LOCK) $(PLAN)
+	$(TERRAFORM) apply $(TF_ARGS_LOCK) $(PLAN) $(SILENT_ARG)
 endif
 
 ###
@@ -374,12 +402,9 @@ endif
 ###
 
 # check infrastructure is up-to-dare
-ifneq ($(VERBOSE),true)
-	CHECK_STATE_VERBOSE_ARG = "&> /dev/null"
-endif
-check-state: session ensure-workspace
+check-state: session ensure-workspace before-state-modification
 	@rm -f exit_status.txt
-	@$(TERRAFORM) plan $(TF_ARGS_PLAN) -detailed-exitcode $(CHECK_STATE_VERBOSE_ARG); echo $$? > exit_status.txt
+	$(TERRAFORM) plan $(TF_ARGS_PLAN) -detailed-exitcode $(VERBOSE_ARG); echo $$? > exit_status.txt
 
 # list resources in the state
 list: session ensure-workspace
@@ -391,5 +416,5 @@ output: session ensure-workspace
 	$(TERRAFORM) output $(ITEM)
 
 # update the state with information from infrastructure
-refresh: session ensure-workspace backup-state
+refresh: session ensure-workspace backup-state before-state-modification
 	$(TERRAFORM) refresh $(TF_ARGS_PLAN)
