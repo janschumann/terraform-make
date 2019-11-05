@@ -167,23 +167,26 @@ endif
 
 # make targets with -default suffix extenable without warnings
 %: %-default
-	@  true
+	@ true
 
 # should install plugins that cannot be installed by terraform init
 install-community-plugins-default:
-	@  true
+	@ true
 
 # should fail, if no valid credentials can be found or the session is expired
 verify-active-session-default:
-	@  true
+	@ true
 
 # should create a backend.tf file contining the base backend declaration
 ensure-backend-default:
-	@  true
+	@ true
 
 # get a new session
 session-default:
-	@  true
+	@ true
+
+backup-state-default:
+	@ true
 
 ###
 ###
@@ -371,9 +374,7 @@ endif
 ###
 
 # check infrastructure is up-to-dare
-ifeq ($(VERBOSE),true)
-	CHECK_STATE_VERBOSE_ARG = ""
-else
+ifneq ($(VERBOSE),true)
 	CHECK_STATE_VERBOSE_ARG = "&> /dev/null"
 endif
 check-state: session ensure-workspace
