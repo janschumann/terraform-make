@@ -86,7 +86,7 @@ EXPIRE = $(shell aws --profile $(ORGANISATION)-$(SESSION_TARGET_PROFILE) configu
 # never expire a session for deployments and in china region
 IS_EXPIRED ?= $(shell if [[ -z $(EXPIRE) || $(EXPIRE) < $(MIN_PERSIST) ]] && [ "$(REGION)" != "cn-north-1" ] && [ "$(IS_DEPLOYMENT)" != "true" ]; then echo 1; else echo 0; fi)
 
-verify-aws:
+verify-aws: warn-env-credentials
 	@if [ -z "$(ORGANISATION)" ]; then echo "$(RED)Please define an ORGANISATION$(NC)"; exit 1; fi
 	@if [ -z "$(ACCOUNT)" ]; then echo "$(RED)Please define an ACCOUNT$(NC)"; exit 1; fi
 	@if [ -z "$(ENVIRONMENT)" ]; then echo "$(RED)Please define an ENVIRONMENT$(NC)"; exit 1; fi
@@ -98,16 +98,21 @@ show-account-id: verify-account-id
 verify-account-id:
 	@if [ -z "$(ACCOUNT_ID)" ]; then echo "$(RED)Please define an ACCOUNT ID$(NC)"; exit 1; fi
 
-verify-credentials:
+verify-credentials: warn-env-credentials
 	@if [ -z "$(ACCESS_KEY_ID)" ]; then echo "$(RED)Please define an access key$(NC)"; exit 1; fi
 	@if [ -z "$(SECRET_ACCESS_KEY)" ]; then echo "$(RED)Please define an secret access key$(NC)"; exit 1; fi
 
-verify-active-session:
+verify-active-session: warn-env-credentials
 	@if [ 1 -eq $(IS_EXPIRED) ]; then echo "$(RED)Your Session $(YELLOW)$(AWS_PROFILE)$(RED) has expired. Aborting.$(NC)"; exit 1; fi
+
+warn-env-credentials:
+	@if [[ "$(shell env | grep AWS_PROFILE)" ]]; then echo "$(YELLOW)WARNING: AWS_PROFILE is defined as env variable$(NC)"; fi
+	@if [[ "$(shell env | grep AWS_ACCESS_KEY_ID)" ]]; then echo "$(YELLOW)WARNING: AWS_ACCESS_KEY_ID is defined as env variable$(NC)"; fi
+	@if [[ "$(shell env | grep AWS_SECRET_ACCESS_KEY_ID)" ]]; then echo "$(YELLOW)WARNING: AWS_SECRET_ACCESS_KEY_ID is defined as env variable$(NC)"; fi
 
 session: access-$(AWS_ROLE_NAME)
 
-access-$(AWS_ROLE_NAME):
+access-$(AWS_ROLE_NAME): warn-env-credentials
 	@if [ 1 -eq $(IS_EXPIRED) ]; then $(TERRAFORM_MAKE_LIB_HOME)/aws-session.sh -o $(ORGANISATION) -p $(SESSION_TARGET_PROFILE) -r $(AWS_ROLE_NAME) $(AWS_SESSION_VERBOSE_ARG); fi
 
 show-access-cmd:
