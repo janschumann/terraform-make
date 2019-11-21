@@ -146,11 +146,6 @@ CURRENT_PLAN_FILE := $(shell if [ -f "$(CURRENT_PLAN)" ]; then cat $(CURRENT_PLA
 # the path to save a new plan to
 # backends MUST override this setting
 PLAN_OUT := $(TERRAFORM_PLAN_DIR)/$(ENVIRONMENT).plan
-# the path of a plan file to operate on
-# defaults to the current plan
-# might be changed to operate on a specific plan, such as previoussly created plans
-# backends MUST override this setting
-PLAN ?= $(CURRENT_PLAN)
 
 LOCAL_STATE_FILE ?= $(TERRAFORM_STATE_DIR)/$(ENVIRONMENT)/terraform.tfstate
 ifeq ($(ENVIRONMENT),default)
@@ -160,6 +155,15 @@ endif
 -include $(TERRAFORM_MAKE_LIB_HOME)/$(TERRAFORM_PROVIDER).mk
 -include $(TERRAFORM_MAKE_LIB_HOME)/terraform-backend-$(BACKEND_TYPE).mk
 
+# if no plan is given, and the current plan file does not exist, we try PLAN_OUT as current plan file
+ifeq ($(PLAN),)
+	PLAN := $(CURRENT_PLAN_FILE)
+endif
+# still no plan? use plan out in case we will create and apply a plan at the same time
+ifeq ($(PLAN),)
+	PLAN := $(PLAN_OUT)
+endif
+
 debug-default:
 	@echo ENVIRONMENT=$(ENVIRONMENT)
 	@echo VAR_FILE=$(VAR_FILE)
@@ -168,7 +172,9 @@ debug-default:
 	@echo TF_ARGS_INIT=$(TF_ARGS_INIT)
 	@echo TF_ARGS_PLAN=$(TF_ARGS_PLAN)
 	@echo CURRENT_PLAN=$(CURRENT_PLAN)
+	@echo CURRENT_PLAN_FILE=$(CURRENT_PLAN_FILE)
 	@echo PLAN=$(PLAN)
+	@echo PLAN_OUT=$(PLAN_OUT)
 	@echo LOCAL_STATE_FILE=$(LOCAL_STATE_FILE)
 	@echo STATE_KEY=$(STATE_KEY)
 	@echo IS_DEPLOYMENT=$(IS_DEPLOYMENT)
@@ -338,32 +344,21 @@ force-plan: dismiss-plan plan
 
 # dismiss current plan
 dismiss-plan:
-# remove accociated plan file
-	@if [ -f "$(CURRENT_PLAN_FILE)" ]; then rm -f $(CURRENT_PLAN_FILE); fi
-# remove current plan
-	@if [ -f "$(CURRENT_PLAN)" ]; then rm -f $(CURRENT_PLAN); fi
+	@if [ -f "$(CURRENT_PLAN)" ]; then rm -f $(CURRENT_PLAN_FILE); rm -f $(CURRENT_PLAN); fi
 
-# check if CURRENT PLAN is missing
+# check if PLAN file is missing
 check-plan-missing: ensure-plan-dir-exists
-	@if [ -f "$(CURRENT_PLAN)" ]; then echo "$(RED)Current plan exists. Please dismiss first.$(NC)"; exit 1; fi
+	@if [ -f "$(PLAN)" ]; then echo "$(RED)Current plan exists. Please dismiss first.$(NC)"; exit 1; fi
 
 # check if PLAN exists
 # uses the current plan as default if PLAN is not defined
 check-plan-exists: ensure-plan-dir-exists
-ifeq ($(PLAN),$(CURRENT_PLAN))
-	@if [ ! -f "$(CURRENT_PLAN_FILE)" ]; then echo "$(RED)Current plan for $(REGION) $(ENVIRONMENT) is missing.$(NC)"; exit 1; fi
-else
 	@if [ ! -f "$(PLAN)" ]; then echo "$(RED)Plan $(PLAN) does not exist.$(NC)"; exit 1; fi
-endif
 
 # show PLAN
 # uses the current plan as default if PLAN is not defined
 show-plan: check-plan-exists
-ifeq ($(PLAN),$(CURRENT_PLAN))
-	$(TERRAFORM) show $(CURRENT_PLAN_FILE)
-else
 	$(TERRAFORM) show $(PLAN)
-endif
 
 # create a destructive plan
 plan-destroy: check-plan-missing session ensure-workspace before-state-modification
@@ -381,21 +376,16 @@ plan-destroy: check-plan-missing session ensure-workspace before-state-modificat
 prompt-for-production:
 ifeq ($(ENVIRONMENT),$(PRODUCTION_ENVIRONMENT_NAME))
 	@echo
-	@echo
-	@read -p "You are deploying to PRODUCTION!! Are you sure? (only yes will be accepted): " deploy; \
+	@echo "$(YELLOW)You are deploying to $(RED)PRODUCTION$(NC)!!"
+	@read -p "Are you sure? (only yes will be accepted): " deploy; \
 	if [[ $$deploy != "yes" ]]; then exit 1; fi
 endif
 
-
 # apply plan
 apply: check-plan-exists prompt-for-production session ensure-workspace backup-state before-state-modification
-ifeq ($(PLAN),$(CURRENT_PLAN))
-	$(TERRAFORM) apply $(TF_ARGS_LOCK) $(CURRENT_PLAN_FILE) $(SILENT_ARG)
-	@rm $(CURRENT_PLAN_FILE)
-	@rm $(CURRENT_PLAN)
-else
 	$(TERRAFORM) apply $(TF_ARGS_LOCK) $(PLAN) $(SILENT_ARG)
-endif
+	@rm -f $(CURRENT_PLAN_FILE)
+	@rm -f $(PLAN)
 
 ###
 ### state and info

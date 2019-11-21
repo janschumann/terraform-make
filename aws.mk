@@ -68,15 +68,11 @@ endif
 # the path of the current plan for this region and environment
 # this contains the actual file name of the current plan
 CURRENT_PLAN := $(TERRAFORM_PLAN_DIR)/current-$(ACCOUNT)-$(ENVIRONMENT)-$(REGION)
+# the path to save a new plan to
+PLAN_OUT := $(TERRAFORM_PLAN_DIR)/$(ACCOUNT)-$(ENVIRONMENT)-$(REGION)-$(DATE).plan
 # the path of the actual plan file
 # empty if no current plan exists
 CURRENT_PLAN_FILE := $(shell if [ -f "$(CURRENT_PLAN)" ]; then cat $(CURRENT_PLAN); fi)
-# the path to save a new plan to
-PLAN_OUT := $(TERRAFORM_PLAN_DIR)/$(ACCOUNT)-$(ENVIRONMENT)-$(REGION)-$(DATE).plan
-# the path of a plan file to operate on
-# defaults to the current plan
-# might be changed to operate on a specific plan, such as previoussly created plans
-PLAN ?= $(CURRENT_PLAN)
 
 ifeq ($(SESSION_TARGET_PROFILE),)
 	SESSION_TARGET_PROFILE = $(ACCOUNT)-$(ENVIRONMENT)
