@@ -223,6 +223,10 @@ backup-state-default:
 before-state-modification-default:
 	@ true
 
+# will be called before all targets that modify the state (refresh, plan, apply)
+before-init-default:
+	@ true
+
 ###
 ###
 ### validation
@@ -285,7 +289,7 @@ ifeq ($(SKIP_BACKEND),true)
 endif
 
 # force re-initialization of terraform state
-force-init: clean-terraform update-modules install-community-plugins session ensure-backend
+force-init: clean-terraform update-modules install-community-plugins session ensure-backend before-init
 	$(TERRAFORM) init $(TF_ARGS_INIT) $(SILENT_ARG)
 
 # if the local state file is missing or a deployment is in progress, we need to initialize
@@ -302,7 +306,7 @@ create-workspace: session init
 	@$(TERRAFORM) workspace select $(ENVIRONMENT) &> /dev/null || $(TERRAFORM) workspace new $(ENVIRONMENT)
 
 # ensure workspace selected
-ensure-workspace: session init verify-active-session ensure-backend
+ensure-workspace: session init ensure-backend
 	@if [ "$(shell $(TERRAFORM) workspace show)" != "$(ENVIRONMENT)" ]; then $(TERRAFORM) workspace select $(ENVIRONMENT) $(SILENT_ARG); fi
 
 # list configured workspaces
@@ -311,7 +315,7 @@ list-configured-workspaces:
 	@find . -name "$(ACCOUNT)-*.tfvars" | grep -v default | awk -F'-' '{print $$2}' | sed 's/.tfvars//' | sort -u
 
 # list workspaces that exist in backend
-list-existing-workspaces: session init verify-active-session
+list-existing-workspaces: session init
 	@echo "$(YELLOW)Workspaces created for $(GREEN)$(ACCOUNT)$(NC)$(YELLOW):$(NC)"
 	@$(TERRAFORM) workspace list | grep -v default | sed 's/* //' | sort -u
 
