@@ -335,7 +335,7 @@ TF_ARGS = $(TF_ARGS_DEFAULT_VAR_FILE) $(TF_ARGS_VAR_FILE) $(TF_ARGS_VAR_IS_DEPLO
 TF_ARGS_PLAN = $(TF_ARGS_LOCK) $(TF_ARGS)
 
 # create a new plan, if not exists
-plan: check-plan-missing session ensure-workspace before-state-modification
+plan: check-plan-missing session ensure-workspace validate before-state-modification
 	@rm -f exit_code.txt
 	$(TERRAFORM) plan $(TF_ARGS_PLAN) -out=$(PLAN_OUT) $(SILENT_ARG)
 	@echo $(PLAN_OUT) > $(CURRENT_PLAN)
@@ -390,6 +390,9 @@ apply: check-plan-exists prompt-for-production session ensure-workspace backup-s
 	$(TERRAFORM) apply $(TF_ARGS_LOCK) $(PLAN) $(SILENT_ARG)
 	@rm -f $(CURRENT_PLAN_FILE)
 	@rm -f $(PLAN)
+
+force-apply: prompt-for-production session ensure-workspace validate backup-state before-state-modification
+	$(TERRAFORM) apply $(TF_ARGS_PLAN) -auto-approve $(SILENT_ARG)
 
 ###
 ### state and info
