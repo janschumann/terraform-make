@@ -128,7 +128,7 @@ reset-account-config: verify-aws verify-account-id
 override-credentials: verify-aws verify-credentials
 	@$(AWS) --profile $(ORGANISATION)-$(ACCOUNT)-$(ENVIRONMENT) configure set aws_access_key_id $(ACCESS_KEY_ID)
 	@$(AWS) --profile $(ORGANISATION)-$(ACCOUNT)-$(ENVIRONMENT) configure set aws_secret_access_key $(SECRET_ACCESS_KEY)
-	@$(AWS) --profile $(ORGANISATION)-$(ACCOUNT)-$(ENVIRONMENT) configure set aws_session_expiration "$(shell date --utc --date "now +$(MIN_SESSION_AGE)min" +"%Y-%m-%dT%H:%M:%SZ")"
+	@$(AWS) --profile $(ORGANISATION)-$(ACCOUNT)-$(ENVIRONMENT) configure set aws_session_expiration "$(shell date --date "now +$(MIN_SESSION_AGE)min" +"%Y-%m-%dT%H:%M:%SZ")"
 
 delete-login-profile: verify-aws
 	@$(AWS) --profile ${ORGANISATION}-${ACCOUNT}-${ENVIRONMENT} iam get-user --user-name "$(IAM_USER)" &> /dev/null

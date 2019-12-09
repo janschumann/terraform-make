@@ -64,3 +64,19 @@ init: CURRENT_PROFILE = $(shell if [ -f $(LOCAL_STATE_FILE) ]; then cat $(LOCAL_
 init: warn-env-credentials
 	$(shell if [ "$(SKIP_BACKEND)" == "false" ] && ([ "$(IS_DEPLOYMENT)" == "true" ] || [ "$(CURRENT_PROFILE)" != "$(AWS_PROFILE)" ] || [ "$(CURRENT_STATE_KEY)" != "$(STATE_KEY)" ]); then echo $(MAKE) force-init; fi)
 
+disable-backend:
+	@$(shell mv backend.tf backend.tf.disabled || true)
+
+enable-backend:
+	@$(shell mv backend.tf.disabled backend.tf || true)
+	@if [[ ! -f backend.tf ]]; then echo "$(RED)Could not enable backend!!$(NC)"; exit 1; fi
+
+backup-local-state:
+	@mv terraform.tfstate.d/$(ENVIRONMENT)/terraform.tfstate $(ACCOUNT)-$(ENVIRONMENT).tfstate
+
+push-local-state: enable-backend force-init ensure-workspace
+	@echo
+	@echo "$(YELLOW)You are uploading a local state to s3$(NC)!!"
+	@read -p "Are you sure? (only yes will be accepted): " deploy; \
+	if [[ $$deploy != "yes" ]]; then exit 1; fi
+	$(TERRAFORM) state push $(ACCOUNT)-$(ENVIRONMENT).tfstate

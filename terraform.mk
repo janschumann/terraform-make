@@ -307,7 +307,7 @@ create-workspace: session init
 
 # ensure workspace selected
 ensure-workspace: session init ensure-backend
-	@if [ "$(shell $(TERRAFORM) workspace show)" != "$(ENVIRONMENT)" ]; then $(TERRAFORM) workspace select $(ENVIRONMENT) $(SILENT_ARG); fi
+	@if [ "$(shell $(TERRAFORM) workspace show)" != "$(ENVIRONMENT)" ]; then $(TERRAFORM) workspace select $(ENVIRONMENT) $(SILENT_ARG) || $(TERRAFORM) workspace new $(ENVIRONMENT); fi
 
 # list configured workspaces
 list-configured-workspaces:
