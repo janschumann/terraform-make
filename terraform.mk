@@ -295,7 +295,7 @@ force-init: clean-terraform update-modules install-community-plugins session ens
 # if the local state file is missing or a deployment is in progress, we need to initialize
 # this target can be extended by backends
 init-default: session
-	$(shell if [ "$(IS_DEPLOYMENT)" == "true" ] || [ ! -f $(LOCAL_STATE_FILE) ]; then echo $(MAKE) force-init; fi)
+	$(shell if [ "$(IS_DEPLOYMENT)" = "true" ] || [ ! -f $(LOCAL_STATE_FILE) ]; then echo $(MAKE) force-init; fi)
 
 # update modules
 update-modules:
