@@ -56,14 +56,17 @@ ifeq ($(MIN_SESSION_AGE),)
 	MIN_SESSION_AGE = 15
 endif
 
-OS := $(shell uname)
-ifeq ($(OS),Darwin)
-	MIN_PERSIST = $(shell gdate --utc --date "now +$(MIN_SESSION_AGE)min" +"%Y-%m-%dT%H:%M:%SZ")
-	DATE = $(shell gdate --utc --date "now" +"%Y-%m-%d-%H-%M-%S")
+ifeq ($(shell uname),Darwin)
+	DATE_CMD_NAME = gdate
 else
-	MIN_PERSIST = $(shell date --utc -D "+$(MIN_SESSION_AGE)min" +"%Y-%m-%dT%H:%M:%SZ")
-	DATE = $(shell date --utc -D +"0min" +"%Y-%m-%d-%H-%M-%S")
+	DATE_CMD_NAME = date
 endif
+DATE_CMD = $(shell command -v $(DATE_CMD_NAME) 2> /dev/null)
+ifeq ($(DATE_CMD),)
+$(error correct date command not installed? looking for $(DATE_CMD_NAME))
+endif
+MIN_PERSIST = $(shell $(DATE_CMD) --utc --date "now +$(MIN_SESSION_AGE)min" +"%s")
+DATE = $(shell $(DATE_CMD) --utc --date "now" +"%Y-%m-%d-%H-%M-%S")
 
 # the path of the current plan for this region and environment
 # this contains the actual file name of the current plan
@@ -78,9 +81,9 @@ ifeq ($(SESSION_TARGET_PROFILE),)
 	SESSION_TARGET_PROFILE = $(ACCOUNT)-$(ENVIRONMENT)
 endif
 
-EXPIRE = $(shell aws --profile $(ORGANISATION)-$(SESSION_TARGET_PROFILE) configure get aws_session_expiration 2> /dev/null || echo 2000-01-01T00:00:00Z)
+EXPIRE = $(shell aws --profile $(ORGANISATION)-$(SESSION_TARGET_PROFILE) configure get aws_session_expiration 2> /dev/null || echo $(shell $(DATE_CMD) -d "2000-01-01T00:00:00Z" +"%s"))
 # never expire a session for deployments and in china region
-IS_EXPIRED ?= $(shell if [[ -z $(EXPIRE) || $(EXPIRE) < $(MIN_PERSIST) ]] && [ "$(REGION)" != "cn-north-1" ] && [ "$(IS_DEPLOYMENT)" != "true" ]; then echo 1; else echo 0; fi)
+IS_EXPIRED ?= $(shell if ([ -z $(EXPIRE) ] || [ $(EXPIRE) -lt $(MIN_PERSIST) ]) && [ "$(REGION)" != "cn-north-1" ] && [ "$(IS_DEPLOYMENT)" != "true" ]; then echo 1; else echo 0; fi)
 
 verify-aws: warn-env-credentials
 	@if [ -z "$(ORGANISATION)" ]; then echo "$(RED)Please define an ORGANISATION$(NC)"; exit 1; fi
@@ -102,9 +105,9 @@ verify-active-session: warn-env-credentials
 	@if [ 1 -eq $(IS_EXPIRED) ]; then echo "$(RED)Your Session $(YELLOW)$(AWS_PROFILE)$(RED) has expired. Aborting.$(NC)"; exit 1; fi
 
 warn-env-credentials:
-	@if [[ "$(shell env | grep AWS_PROFILE)" ]]; then echo "$(YELLOW)WARNING: AWS_PROFILE is defined as env variable$(NC)"; fi
-	@if [[ "$(shell env | grep AWS_ACCESS_KEY_ID)" ]]; then echo "$(YELLOW)WARNING: AWS_ACCESS_KEY_ID is defined as env variable$(NC)"; fi
-	@if [[ "$(shell env | grep AWS_SECRET_ACCESS_KEY_ID)" ]]; then echo "$(YELLOW)WARNING: AWS_SECRET_ACCESS_KEY_ID is defined as env variable$(NC)"; fi
+	@if [ "$(shell env | grep AWS_PROFILE)" ]; then echo "$(YELLOW)WARNING: AWS_PROFILE is defined as env variable$(NC)"; fi
+	@if [ "$(shell env | grep AWS_ACCESS_KEY_ID)" ]; then echo "$(YELLOW)WARNING: AWS_ACCESS_KEY_ID is defined as env variable$(NC)"; fi
+	@if [ "$(shell env | grep AWS_SECRET_ACCESS_KEY_ID)" ]; then echo "$(YELLOW)WARNING: AWS_SECRET_ACCESS_KEY_ID is defined as env variable$(NC)"; fi
 
 session: access-$(AWS_ROLE_NAME)
 
@@ -122,13 +125,13 @@ reset-iam-config: verify-aws verify-account-id
 
 reset-account-config: verify-aws verify-account-id
 	@$(AWS) --profile $(ORGANISATION)-$(ACCOUNT)-$(ENVIRONMENT) configure set account_id $(ACCOUNT_ID)
-	@$(AWS) --profile $(ORGANISATION)-$(ACCOUNT)-$(ENVIRONMENT) configure set aws_session_expiration "2000-01-01T00:00:00Z"
+	@$(AWS) --profile $(ORGANISATION)-$(ACCOUNT)-$(ENVIRONMENT) configure set aws_session_expiration "$(shell $(DATE_CMD) --utc --date "2000-01-01T00:00:00Z" +"%s")"
 	@$(AWS) --profile $(ORGANISATION)-$(ACCOUNT)-$(ENVIRONMENT) configure set region $(REGION)
 
 override-credentials: verify-aws verify-credentials
 	@$(AWS) --profile $(ORGANISATION)-$(ACCOUNT)-$(ENVIRONMENT) configure set aws_access_key_id $(ACCESS_KEY_ID)
 	@$(AWS) --profile $(ORGANISATION)-$(ACCOUNT)-$(ENVIRONMENT) configure set aws_secret_access_key $(SECRET_ACCESS_KEY)
-	@$(AWS) --profile $(ORGANISATION)-$(ACCOUNT)-$(ENVIRONMENT) configure set aws_session_expiration "$(shell date --date "now +$(MIN_SESSION_AGE)min" +"%Y-%m-%dT%H:%M:%SZ")"
+	@$(AWS) --profile $(ORGANISATION)-$(ACCOUNT)-$(ENVIRONMENT) configure set aws_session_expiration "$(shell $(DATE_CMD) --utc --date "now +$(MIN_SESSION_AGE)min" +"%s")"
 
 delete-login-profile: verify-aws
 	@$(AWS) --profile ${ORGANISATION}-${ACCOUNT}-${ENVIRONMENT} iam get-user --user-name "$(IAM_USER)" &> /dev/null

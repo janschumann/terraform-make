@@ -107,17 +107,17 @@ fi
 WARNING_ACCESS_KEY_AGE=$(($MAX_ACCESS_KEY_AGE - $WARNING_BEFORE_DAYS))
 QUERY=".AccessKeyMetadata[] | select(.AccessKeyId == \"${ACCESS_KEY_ID}\") | .CreateDate"
 CREATE_DATE=$(aws --profile ${PROFILE} iam list-access-keys --user-name ${USER} | jq -r "${QUERY}") # | select(.AccessKeyId == '${ACCESS_KEY_ID}') | .CreateDate")
-EXPIRE=$(date --utc --date "${CREATE_DATE} +${MAX_ACCESS_KEY_AGE}days" +"%Y-%m-%dT%H:%M:%SZ")
-EXPIRE_SOON=$(date --utc --date "${CREATE_DATE} +${WARNING_ACCESS_KEY_AGE}days" +"%Y-%m-%dT%H:%M:%SZ")
-DATE=$(date --utc --date "now" +"%Y-%m-%dT%H:%M:%SZ")
+EXPIRE=$(date --utc --date "${CREATE_DATE} +${MAX_ACCESS_KEY_AGE}days" +"%s")
+EXPIRE_SOON=$(date --utc --date "${CREATE_DATE} +${WARNING_ACCESS_KEY_AGE}days" +"%s")
+DATE=$(date --utc --date "now" +"%s")
 if test -n "${VERBOSE}"; then
   echo -e "Session create date is ${YELLOW}${CREATE_DATE}${NC}"
   echo -e "          Will warn on ${YELLOW}${EXPIRE_SOON}${NC}"
   echo -e "        Will expire on ${YELLOW}${EXPIRE}${NC}"
   echo -e "               Date is ${YELLOW}${DATE}${NC}"
 fi
-if [[ -z $CREATE_DATE || $EXPIRE_SOON < $DATE ]]; then
-  if [[ -z $CREATE_DATE || $EXPIRE < $DATE ]]; then
+if [[ -z $CREATE_DATE || $EXPIRE_SOON -lt $DATE ]]; then
+  if [[ -z $CREATE_DATE || $EXPIRE -lt $DATE ]]; then
     echo -e "${RED}Your access Key has expired and will be deleted NOW${NC}"
     echo "Please login and create new Access Keys here: "
     echo "https://console.aws.amazon.com/iam/home?region=${REGION}#/users/${USER}?section=security_credentials"
@@ -166,7 +166,7 @@ else
   aws configure --profile ${TO_PROFILE} set aws_secret_access_key "$(echo ${SESSION} | jq -r '.Credentials.SecretAccessKey')"
   aws configure --profile ${TO_PROFILE} set aws_session_token "$(echo ${SESSION} | jq -r '.Credentials.SessionToken')"
   # write expiration time to config
-  aws configure --profile ${TO_PROFILE} set aws_session_expiration "$(echo ${SESSION} | jq -r '.Credentials.Expiration')"
+  aws configure --profile ${TO_PROFILE} set aws_session_expiration "$(date --date "$(echo ${SESSION} | jq -r '.Credentials.Expiration')" +"%s")"
   # write default region from iam profile
   aws configure --profile ${TO_PROFILE} set region $(aws configure --profile ${PROFILE} get region)
 
