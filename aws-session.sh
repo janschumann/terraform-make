@@ -109,7 +109,7 @@ QUERY=".AccessKeyMetadata[] | select(.AccessKeyId == \"${ACCESS_KEY_ID}\") | .Cr
 CREATE_DATE=$(aws --profile ${PROFILE} iam list-access-keys --user-name ${USER} | jq -r "${QUERY}") # | select(.AccessKeyId == '${ACCESS_KEY_ID}') | .CreateDate")
 EXPIRE=$(date --utc --date "${CREATE_DATE} +${MAX_ACCESS_KEY_AGE}days" +"%s")
 EXPIRE_SOON=$(date --utc --date "${CREATE_DATE} +${WARNING_ACCESS_KEY_AGE}days" +"%s")
-DATE=$(date --utc --date "now" +"%s")
+DATE=$(date --utc +"%s")
 if test -n "${VERBOSE}"; then
   echo -e "Session create date is ${YELLOW}${CREATE_DATE}${NC}"
   echo -e "          Will warn on ${YELLOW}${EXPIRE_SOON}${NC}"

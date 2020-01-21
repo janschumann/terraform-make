@@ -65,8 +65,8 @@ DATE_CMD = $(shell command -v $(DATE_CMD_NAME) 2> /dev/null)
 ifeq ($(DATE_CMD),)
 $(error correct date command not installed? looking for $(DATE_CMD_NAME))
 endif
-MIN_PERSIST = $(shell $(DATE_CMD) --utc --date "now +$(MIN_SESSION_AGE)min" +"%s")
-DATE = $(shell $(DATE_CMD) --utc --date "now" +"%Y-%m-%d-%H-%M-%S")
+MIN_PERSIST = $(shell $(DATE_CMD) --utc --date "+$(MIN_SESSION_AGE)min" +"%s")
+DATE = $(shell $(DATE_CMD) --utc +"%Y-%m-%d-%H-%M-%S")
 
 # the path of the current plan for this region and environment
 # this contains the actual file name of the current plan
@@ -131,7 +131,7 @@ reset-account-config: verify-aws verify-account-id
 override-credentials: verify-aws verify-credentials
 	@$(AWS) --profile $(ORGANISATION)-$(ACCOUNT)-$(ENVIRONMENT) configure set aws_access_key_id $(ACCESS_KEY_ID)
 	@$(AWS) --profile $(ORGANISATION)-$(ACCOUNT)-$(ENVIRONMENT) configure set aws_secret_access_key $(SECRET_ACCESS_KEY)
-	@$(AWS) --profile $(ORGANISATION)-$(ACCOUNT)-$(ENVIRONMENT) configure set aws_session_expiration "$(shell $(DATE_CMD) --utc --date "now +$(MIN_SESSION_AGE)min" +"%s")"
+	@$(AWS) --profile $(ORGANISATION)-$(ACCOUNT)-$(ENVIRONMENT) configure set aws_session_expiration "$(shell $(DATE_CMD) --utc --date "+$(MIN_SESSION_AGE)min" +"%s")"
 
 delete-login-profile: verify-aws
 	@$(AWS) --profile ${ORGANISATION}-${ACCOUNT}-${ENVIRONMENT} iam get-user --user-name "$(IAM_USER)" &> /dev/null

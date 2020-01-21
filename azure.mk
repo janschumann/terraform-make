@@ -16,9 +16,9 @@ endif
 
 OS := $(shell uname)
 ifeq ($(OS),Darwin)
-	DATE = $(shell gdate --utc --date "now" +"%Y-%m-%d-%H-%M-%S")
+	DATE = $(shell gdate --utc +"%Y-%m-%d-%H-%M-%S")
 else
-	DATE = $(shell date --utc --date "now" +"%Y-%m-%d-%H-%M-%S")
+	DATE = $(shell date --utc +"%Y-%m-%d-%H-%M-%S")
 endif
 
 # the path of the current plan for this region and environment
