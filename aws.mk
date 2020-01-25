@@ -19,6 +19,14 @@ ifeq ($(AWS),)
 $(error aws-cli not installed? looking for $(AWS_CMD))
 endif
 
+# require date from coreutils!
+# TODO: we do not test coreutils date version in case of deployment: we need to get rid of this conditional
+ifneq ($(IS_DEPLOYMENT),true)
+ifeq ($(shell date --version | grep coreutils || true),)
+$(error date command must be gnu date (coreutils))
+endif
+endif
+
 # the organisation of this configuration
 # well be read from DEFAULT_VAR_FILE by default
 ORGANISATION ?= $(shell cat $(DEFAULT_VAR_FILE) | grep "^organisation_short_name[[:space:]]*=" | sed 's/^[^"]*"\(.*\)".*/\1/')
@@ -56,15 +64,8 @@ ifeq ($(MIN_SESSION_AGE),)
 	MIN_SESSION_AGE = 15
 endif
 
-ifeq ($(shell uname),Darwin)
-	DATE_CMD_NAME = gdate
-else
-	DATE_CMD_NAME = date
-endif
-DATE_CMD = $(shell command -v $(DATE_CMD_NAME) 2> /dev/null)
-ifeq ($(DATE_CMD),)
-$(error correct date command not installed? looking for $(DATE_CMD_NAME))
-endif
+DATE_CMD = $(shell command -v date 2> /dev/null)
+RESET_DATE = $(shell $(DATE_CMD) --utc --date "2000-01-01T00:00:00Z" +"%s")
 MIN_PERSIST = $(shell $(DATE_CMD) --utc --date "+$(MIN_SESSION_AGE)min" +"%s")
 DATE = $(shell $(DATE_CMD) --utc +"%Y-%m-%d-%H-%M-%S")
 
@@ -81,7 +82,7 @@ ifeq ($(SESSION_TARGET_PROFILE),)
 	SESSION_TARGET_PROFILE = $(ACCOUNT)-$(ENVIRONMENT)
 endif
 
-EXPIRE = $(shell aws --profile $(ORGANISATION)-$(SESSION_TARGET_PROFILE) configure get aws_session_expiration 2> /dev/null || echo $(shell $(DATE_CMD) -d "2000-01-01T00:00:00Z" +"%s"))
+EXPIRE = $(shell aws --profile $(ORGANISATION)-$(SESSION_TARGET_PROFILE) configure get aws_session_expiration 2> /dev/null || echo $(RESET_DATE))
 # never expire a session for deployments and in china region
 IS_EXPIRED ?= $(shell if ([ -z $(EXPIRE) ] || [ $(EXPIRE) -lt $(MIN_PERSIST) ]) && [ "$(REGION)" != "cn-north-1" ] && [ "$(IS_DEPLOYMENT)" != "true" ]; then echo 1; else echo 0; fi)
 
@@ -102,7 +103,7 @@ verify-credentials: warn-env-credentials
 	@if [ -z "$(SECRET_ACCESS_KEY)" ]; then echo "$(RED)Please define an secret access key$(NC)"; exit 1; fi
 
 verify-active-session: warn-env-credentials
-	@if [ 1 -eq $(IS_EXPIRED) ]; then echo "$(RED)Your Session $(YELLOW)$(AWS_PROFILE)$(RED) has expired. Aborting.$(NC)"; exit 1; fi
+	@if [ "1" = "$(IS_EXPIRED)" ]; then echo "$(RED)Your Session $(YELLOW)$(AWS_PROFILE)$(RED) has expired. Aborting.$(NC)"; exit 1; fi
 
 warn-env-credentials:
 	@if [ "$(shell env | grep AWS_PROFILE)" ]; then echo "$(YELLOW)WARNING: AWS_PROFILE is defined as env variable$(NC)"; fi
@@ -112,7 +113,7 @@ warn-env-credentials:
 session: access-$(AWS_ROLE_NAME)
 
 access-$(AWS_ROLE_NAME): warn-env-credentials
-	@if [ 1 -eq $(IS_EXPIRED) ]; then $(TERRAFORM_MAKE_LIB_HOME)/aws-session.sh -o $(ORGANISATION) -p $(SESSION_TARGET_PROFILE) -r $(AWS_ROLE_NAME) $(AWS_SESSION_VERBOSE_ARG); fi
+	@if [ "1" = "$(IS_EXPIRED)" ]; then $(TERRAFORM_MAKE_LIB_HOME)/aws-session.sh -o $(ORGANISATION) -p $(SESSION_TARGET_PROFILE) -r $(AWS_ROLE_NAME) $(AWS_SESSION_VERBOSE_ARG); fi
 
 show-access-cmd:
 	@echo $(TERRAFORM_MAKE_LIB_HOME)/aws-session.sh -o $(ORGANISATION) -p $(SESSION_TARGET_PROFILE) -r $(AWS_ROLE_NAME)
@@ -125,7 +126,7 @@ reset-iam-config: verify-aws verify-account-id
 
 reset-account-config: verify-aws verify-account-id
 	@$(AWS) --profile $(ORGANISATION)-$(ACCOUNT)-$(ENVIRONMENT) configure set account_id $(ACCOUNT_ID)
-	@$(AWS) --profile $(ORGANISATION)-$(ACCOUNT)-$(ENVIRONMENT) configure set aws_session_expiration "$(shell $(DATE_CMD) --utc --date "2000-01-01T00:00:00Z" +"%s")"
+	@$(AWS) --profile $(ORGANISATION)-$(ACCOUNT)-$(ENVIRONMENT) configure set aws_session_expiration "$(RESET_DATE)"
 	@$(AWS) --profile $(ORGANISATION)-$(ACCOUNT)-$(ENVIRONMENT) configure set region $(REGION)
 
 override-credentials: verify-aws verify-credentials

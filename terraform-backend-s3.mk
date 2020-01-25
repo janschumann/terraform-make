@@ -62,7 +62,7 @@ endif
 init: CURRENT_STATE_KEY = $(shell if [ -f $(LOCAL_STATE_FILE) ]; then cat $(LOCAL_STATE_FILE) | grep "\"key\":" | awk -F\" '{print $$4}'; fi)
 init: CURRENT_PROFILE = $(shell if [ -f $(LOCAL_STATE_FILE) ]; then cat $(LOCAL_STATE_FILE) | grep "\"profile\":" | awk -F\" '{print $$4}'; fi)
 init: warn-env-credentials
-	$(shell if [ "$(SKIP_BACKEND)" = "false" ] && ([ "$(IS_DEPLOYMENT)" = "true" ] || [ "$(CURRENT_PROFILE)" != "$(AWS_PROFILE)" ] || [ "$(CURRENT_STATE_KEY)" != "$(STATE_KEY)" ]); then echo $(MAKE) force-init; fi)
+	$(shell if [ ! -f $(LOCAL_STATE_FILE) ] || ([ "$(IS_DEPLOYMENT)" != "true" ] && ([ "$(CURRENT_PROFILE)" != "$(AWS_PROFILE)" ] || [ "$(CURRENT_STATE_KEY)" != "$(STATE_KEY)" ])); then echo $(MAKE) force-init; fi)
 
 disable-backend:
 	@$(shell mv backend.tf backend.tf.disabled || true)

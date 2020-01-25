@@ -189,6 +189,8 @@ ifeq ($(VERBOSE),true)
 	@echo TERRAFORM_STATE_DIR=$(TERRAFORM_STATE_DIR)
 	@echo TERRAFORM_STATE_LOCK=$(TERRAFORM_STATE_LOCK)
 	@echo PRODUCTION_ENVIRONMENT_NAME=$(PRODUCTION_ENVIRONMENT_NAME)
+	@echo EXPIRE=$(EXPIRE)
+	@echo MIN_PERSIST=$(MIN_PERSIST)
 endif
 
 ###
@@ -262,23 +264,23 @@ ensure-plan-dir-exists:
 ###
 
 # force remove terraform cache dir
-clean-terraform-state:
+force-clean-terraform-cache: clean-terraform-cache
 	@rm -rf $(TERRAFORM_CACHE_DIR)
 	@rm -rf $(TERRAFORM_STATE_DIR)
 	@rm -rf terraform.tfstate
 
 # ensure terraform needs to re-init
 # modules and plgins will not be removed
-clean-terraform:
+clean-terraform-cache:
 	@if [ -d $(TERRAFORM_CACHE_DIR) ]; then find $(TERRAFORM_CACHE_DIR) -maxdepth 1 -type f -not -name $(TERRAFORM_CACHE_DIR) -not -name 'plugins' -not -name 'modules' -delete; fi
 	@rm -rf exit_status.txt
 
-# force cleanup plans and terraform cache
-force-clean-terraform: clean-terraform clean-terraform-state
+clean-terraform-plans:
+	@rm -rf $(TERRAFORM_PLAN_DIR)
+	@rm -rf exit_status.txt
 
 # clean plans and terraform cache
-clean-all: clean-terraform
-	@rm -rf $(TERRAFORM_PLAN_DIR)
+clean-all: clean-terraform-cache clean-terraform-plans
 
 ###
 ### initialzation
@@ -289,7 +291,7 @@ ifeq ($(SKIP_BACKEND),true)
 endif
 
 # force re-initialization of terraform state
-force-init: clean-terraform update-modules install-community-plugins session ensure-backend before-init
+force-init: clean-terraform-cache install-community-plugins session ensure-backend before-init
 	$(TERRAFORM) init $(TF_ARGS_INIT) $(SILENT_ARG)
 
 # if the local state file is missing or a deployment is in progress, we need to initialize
@@ -363,6 +365,9 @@ check-plan-exists: ensure-plan-dir-exists
 # uses the current plan as default if PLAN is not defined
 show-plan: check-plan-exists
 	$(TERRAFORM) show $(PLAN)
+
+current-plan:
+	@echo $(PLAN)
 
 # create a destructive plan
 plan-destroy: check-plan-missing session ensure-workspace before-state-modification
