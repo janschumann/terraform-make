@@ -384,10 +384,12 @@ plan-destroy: check-plan-missing session ensure-workspace before-state-modificat
 
 prompt-for-production:
 ifeq ($(ENVIRONMENT),$(PRODUCTION_ENVIRONMENT_NAME))
+ifneq ($(IS_DEPLOYMENT),true)
 	@echo
 	@echo "$(YELLOW)You are deploying to $(RED)PRODUCTION$(NC)!!"
 	@read -p "Are you sure? (only yes will be accepted): " deploy; \
 	if [[ $$deploy != "yes" ]]; then exit 1; fi
+endif
 endif
 
 # apply plan
