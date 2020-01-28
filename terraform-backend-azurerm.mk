@@ -25,6 +25,6 @@ ifeq ($(ENVIRONMENT),default)
 	AZURERM_BACKEND_STATE_ENV_SUFFIX =
 endif
 
-backup-state:
+backup-state: verify-azure
 	@echo "Creating state snapshot"
 	@az storage blob snapshot --subscription $(AZURERM_BACKEND_SUBSCRIPTION) --container-name $(STATE_BACKEND_CONTAINER) --account-name $(AZURERM_BACKEND_STORAGE_ACCOUNT_NAME) --account-key $(AZURERM_BACKEND_STORAGE_ACCOUNT_ACCESS_KEY) --name $(STATE_KEY)$(AZURERM_BACKEND_STATE_ENV_SUFFIX) 2> /dev/null

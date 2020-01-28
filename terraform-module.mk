@@ -44,16 +44,18 @@ update-modules: clean-modules
 fmt:
 	@$(TERRAFORM) fmt -recursive
 
-# check terraform code
-validate: prepare-provider validate-code
+# check format
+validate-fmt:
 	@echo "==> Checking that code complies with terraform fmt requirements..."
 	@$(TERRAFORM) fmt -check -recursive || (echo; echo "$(RED)Please correct the files above$(NC)"; echo; exit 1)
 	@echo "==> $(GREEN)Ok.$(NC)"
 
 # validate code
 validate-code: prepare-provider init
-	@$(TERRAFORM) validate
+	$(TERRAFORM) validate
 	@rm -f $(PROVIDER_FILE)
+
+validate: validate-fmt validate-code
 
 # clean plugins and moules before init
 force-init: clean init

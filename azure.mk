@@ -34,8 +34,15 @@ PLAN_OUT := $(TERRAFORM_PLAN_DIR)/$(ENVIRONMENT)-$(DATE).plan
 # might be changed to operate on a specific plan, such as previoussly created plans
 PLAN ?= $(CURRENT_PLAN)
 
-verify-active-session:
+verify-azure:
+	@if [ -z "$(ENVIRONMENT)" ]; then echo "$(RED)Please define an ENVIRONMENT$(NC)"; exit 1; fi
+	@command -v $(AZURE_CLI) > /dev/null || echo "$(RED)azure cli not installed$(NC)"
+
+verify-active-session: verify-azure
 	@$(AZURE_CLI) account list | jq '.[].name' | grep $(ENVIRONMENT) &> /dev/null || (echo "$(RED)Subscription not found. Need az login?$(NC) $(YELLOW)$(ENVIRONMENT)$(NC)"; exit 1)
 
-azure-login:
+session: azure-login
+	@ true
+
+azure-login: verify-azure
 	@$(AZURE_CLI) login

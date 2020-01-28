@@ -20,17 +20,22 @@ STATE_NAME ?= account
 # the state key
 STATE_KEY ?= $(ACCOUNT)/$(REGION)/$(STATE_NAME).tfstate
 
+# the kms key to encrypt state files in s3
+VAR_FILE_KMS_KEY_ARN := $(shell if [ -f $(VAR_FILE) ]; then cat $(VAR_FILE) | grep "^kms_key_id[[:space:]]*=" | sed 's/^[^"]*"\(.*\)".*/\1/'; fi)
+ifeq ($(VAR_FILE_KMS_KEY_ARN),)
+	KMS_KEY_ARN ?= $(shell if [ -f $(DEFAULT_VAR_FILE) ]; then cat $(DEFAULT_VAR_FILE) | grep "^kms_key_id[[:space:]]*=" | sed 's/^[^"]*"\(.*\)".*/\1/'; fi)
+else
+	KMS_KEY_ARN ?= $(VAR_FILE_KMS_KEY_ARN)
+endif
+
 STATE_ENCRYPT ?= true
 # no encryption if no backend should be used
 ifeq ($(SKIP_BACKEND),true)
 	STATE_ENCRYPT = false
 endif
 
-# the kms key to encrypt state files in s3
-# well be read from DEFAULT_VAR_FILE by default
-KMS_KEY_ARN ?= $(shell cat $(DEFAULT_VAR_FILE) | grep "^kms_key_id[[:space:]]*=" | sed 's/^[^"]*"\(.*\)".*/\1/')
 ifeq ($(STATE_ENCRYPT),false)
-	KMS_KEY_ARN =
+	KMS_KEY_ARN :=
 endif
 
 STATE_BACKEND_S3_CONFIG_INIT_ARGS = -backend-config="bucket=$(STATE_CONTAINER)" -backend-config="key=$(STATE_KEY)" -backend-config="region=$(STATE_BACKEND_REGION)" -backend-config="encrypt=$(STATE_ENCRYPT)" -backend-config="acl=authenticated-read"
@@ -71,10 +76,10 @@ enable-backend:
 	@$(shell mv backend.tf.disabled backend.tf || true)
 	@if [[ ! -f backend.tf ]]; then echo "$(RED)Could not enable backend!!$(NC)"; exit 1; fi
 
-backup-local-state:
+backup-local-state: ensure-environment
 	@mv terraform.tfstate.d/$(ENVIRONMENT)/terraform.tfstate $(ACCOUNT)-$(ENVIRONMENT).tfstate
 
-push-local-state: enable-backend force-init ensure-workspace
+push-local-state: ensure-environment enable-backend force-init ensure-workspace
 	@echo
 	@echo "$(YELLOW)You are uploading a local state to s3$(NC)!!"
 	@read -p "Are you sure? (only yes will be accepted): " deploy; \

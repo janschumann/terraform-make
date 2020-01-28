@@ -28,23 +28,39 @@ endif
 endif
 
 # the organisation of this configuration
-# well be read from DEFAULT_VAR_FILE by default
-ORGANISATION ?= $(shell cat $(DEFAULT_VAR_FILE) | grep "^organisation_short_name[[:space:]]*=" | sed 's/^[^"]*"\(.*\)".*/\1/')
+VAR_FILE_ORGANISATION := $(shell if [ -f $(VAR_FILE) ]; then cat $(VAR_FILE) | grep "^organisation_short_name[[:space:]]*=" | sed 's/^[^"]*"\(.*\)".*/\1/'; fi)
+ifeq ($(VAR_FILE_ORGANISATION),)
+	ORGANISATION ?= $(shell if [ -f $(DEFAULT_VAR_FILE) ]; then cat $(DEFAULT_VAR_FILE) | grep "^organisation_short_name[[:space:]]*=" | sed 's/^[^"]*"\(.*\)".*/\1/'; fi)
+else
+	ORGANISATION ?= $(VAR_FILE_ORGANISATION)
+endif
 
 # the account of this configuration
-# well be read from DEFAULT_VAR_FILE by default
-ACCOUNT ?= $(shell cat $(VAR_FILE) | grep "^account_name[[:space:]]*=" | sed 's/^[^"]*"\(.*\)".*/\1/')
-ACCOUNT_ID ?= $(shell cat $(VAR_FILE) | grep "^account_id[[:space:]]*=" | sed 's/^[^"]*"\(.*\)".*/\1/')
-
-# the environment
-ENVIRONMENT ?= $(shell cat $(VAR_FILE) | grep "^environment[[:space:]]*=" | sed 's/^[^"]*"\(.*\)".*/\1/')
-
-# the region of this configuration. this is part of the the backend key name
-# well be read from DEFAULT_VAR_FILE by default
-REGION ?= $(shell cat $(DEFAULT_VAR_FILE) | grep "^default_region[[:space:]]*=" | sed 's/^[^"]*"\(.*\)".*/\1/')
+VAR_FILE_ACCOUNT := $(shell if [ -f $(VAR_FILE) ]; then cat $(VAR_FILE) | grep "^account_name[[:space:]]*=" | sed 's/^[^"]*"\(.*\)".*/\1/'; fi)
+VAR_FILE_ACCOUNT_ID := $(shell if [ -f $(VAR_FILE) ]; then cat $(VAR_FILE) | grep "^account_id[[:space:]]*=" | sed 's/^[^"]*"\(.*\)".*/\1/'; fi)
+ifeq ($(VAR_FILE_ACCOUNT_ID),)
+	ACCOUNT ?= $(shell if [ -f $(DEFAULT_VAR_FILE) ]; then cat $(DEFAULT_VAR_FILE) | grep "^account_name[[:space:]]*=" | sed 's/^[^"]*"\(.*\)".*/\1/'; fi)
+	ACCOUNT_ID ?= $(shell if [ -f $(DEFAULT_VAR_FILE) ]; then cat $(DEFAULT_VAR_FILE) | grep "^account_id[[:space:]]*=" | sed 's/^[^"]*"\(.*\)".*/\1/'; fi)
+else
+	ACCOUNT ?= $(VAR_FILE_ACCOUNT)
+	ACCOUNT_ID ?= $(VAR_FILE_ACCOUNT_ID)
+endif
 
 # the default region of this configuration
-DEFAULT_REGION ?= $(shell cat $(DEFAULT_VAR_FILE) | grep "^default_region[[:space:]]*=" | sed 's/^[^"]*"\(.*\)".*/\1/')
+VAR_FILE_DEFAULT_REGION := $(shell if [ -f $(VAR_FILE) ]; then cat $(VAR_FILE) | grep "^default_region[[:space:]]*=" | sed 's/^[^"]*"\(.*\)".*/\1/'; fi)
+ifeq ($(VAR_FILE_DEFAULT_REGION),)
+	DEFAULT_REGION ?= $(shell if [ -f $(DEFAULT_VAR_FILE) ]; then cat $(DEFAULT_VAR_FILE) | grep "^default_region[[:space:]]*=" | sed 's/^[^"]*"\(.*\)".*/\1/'; fi)
+else
+	DEFAULT_REGION ?= $(VAR_FILE_DEFAULT_REGION)
+endif
+
+# the region of this configuration. this is part of the the backend key name
+VAR_FILE_REGION := $(shell if [ -f $(VAR_FILE) ]; then cat $(VAR_FILE) | grep "^region[[:space:]]*=" | sed 's/^[^"]*"\(.*\)".*/\1/'; fi)
+ifeq ($(VAR_FILE_REGION),)
+	REGION ?= $(DEFAULT_REGION)
+else
+	REGION ?= $(VAR_FILE_REGION)
+endif
 
 ifeq ($(VERBOSE),true)
 	AWS_SESSION_VERBOSE_ARG = "-v"
@@ -112,10 +128,10 @@ warn-env-credentials:
 
 session: access-$(AWS_ROLE_NAME)
 
-access-$(AWS_ROLE_NAME): warn-env-credentials
+access-$(AWS_ROLE_NAME): verify-aws warn-env-credentials
 	@if [ "1" = "$(IS_EXPIRED)" ]; then $(TERRAFORM_MAKE_LIB_HOME)/aws-session.sh -o $(ORGANISATION) -p $(SESSION_TARGET_PROFILE) -r $(AWS_ROLE_NAME) $(AWS_SESSION_VERBOSE_ARG); fi
 
-show-access-cmd:
+show-session-cmd:
 	@echo $(TERRAFORM_MAKE_LIB_HOME)/aws-session.sh -o $(ORGANISATION) -p $(SESSION_TARGET_PROFILE) -r $(AWS_ROLE_NAME)
 
 reset-iam-config: IAM_USER ?= $(USER)

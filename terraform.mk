@@ -118,23 +118,18 @@ PRODUCTION_ENVIRONMENT_NAME ?= prod
 # var file to load environment specific values from
 # defaults to terraform.tfvars
 VAR_FILE ?= terraform.tfvars
-ifeq ($(wildcard $(VAR_FILE)),)
-$(error Variable file not found: VAR_FILE=$(VAR_FILE))
-endif
-# var file to load default values from
-# will be added before other var files to terraform calls, so that values can be
-# overridden in environment specific var files
-# if the default var file does not exist, VAR_FILE is used as fallback
 DEFAULT_VAR_FILE ?= default.tfvars
 ifeq ($(wildcard $(DEFAULT_VAR_FILE)),)
 	DEFAULT_VAR_FILE = $(VAR_FILE)
 endif
-ifeq ($(wildcard $(DEFAULT_VAR_FILE)),)
-$(error Default Variable file not found: DEFAULT_VAR_FILE=$(DEFAULT_VAR_FILE))
-endif
 
-# the default is sourced from the given var file
-ENVIRONMENT ?= $(shell cat $(VAR_FILE) | grep "^environment[[:space:]]*=" | sed 's/^[^"]*"\(.*\)".*/\1/')
+# the environment of this configuration
+VAR_FILE_ENVIRONMENT := $(shell if [ -f "$(VAR_FILE)" ]; then cat $(VAR_FILE) | grep "^environment[[:space:]]*=" | sed 's/^[^"]*"\(.*\)".*/\1/'; fi)
+ifeq ($(VAR_FILE_ENVIRONMENT),)
+	ENVIRONMENT ?= $(shell if [ -f "$(DEFAULT_VAR_FILE)" ]; then cat $(DEFAULT_VAR_FILE) | grep "^environment[[:space:]]*=" | sed 's/^[^"]*"\(.*\)".*/\1/'; fi)
+else
+	ENVIRONMENT ?= $(VAR_FILE_ENVIRONMENT)
+endif
 
 # this contains the actual file name of the current plan
 # backends MUST override this setting
@@ -235,17 +230,16 @@ before-init-default:
 ###
 ###
 
-ifeq ($(ENVIRONMENT),)
-$(error Please define the ENVIRONMENT env variable or set the environment in the var file $(VAR_FILE))
-endif
+validate: validate-fmt validate-code
 
-# check the format
-validate: validate-code
+# check format
+validate-fmt:
 	@echo "==> Checking that code complies with terraform fmt requirements..."
 	@$(TERRAFORM) fmt -check -recursive || (echo; echo "$(RED)Please correct the files above$(NC)"; echo; exit 1)
 	@echo "==> $(GREEN)Ok.$(NC)"
 
 # validate code
+validate-code: SKIP_BACKEND := true
 validate-code: init
 	$(TERRAFORM) validate
 
@@ -282,6 +276,15 @@ clean-terraform-plans:
 # clean plans and terraform cache
 clean-all: clean-terraform-cache clean-terraform-plans
 
+# clean plans and terraform cache
+force-clean-all: force-clean-terraform-cache clean-terraform-plans
+
+###
+### default
+###
+.DEFAULT_GOAL := default
+default: fmt validate
+
 ###
 ### initialzation
 ###
@@ -291,13 +294,15 @@ ifeq ($(SKIP_BACKEND),true)
 endif
 
 # force re-initialization of terraform state
-force-init: clean-terraform-cache install-community-plugins session ensure-backend before-init
+force-init: install-community-plugins session ensure-backend before-init
+	@rm -rf $(TERRAFORM_CACHE_DIR)/terraform.tfstate
+	@rm -rf $(TERRAFORM_CACHE_DIR)/environment
 	$(TERRAFORM) init $(TF_ARGS_INIT) $(SILENT_ARG)
 
 # if the local state file is missing or a deployment is in progress, we need to initialize
 # this target can be extended by backends
 init-default: session
-	$(shell if [ "$(IS_DEPLOYMENT)" = "true" ] || [ ! -f $(LOCAL_STATE_FILE) ]; then echo $(MAKE) force-init; fi)
+	echo $(MAKE) force-init
 
 # update modules
 update-modules:
@@ -349,28 +354,28 @@ plan: check-plan-missing session ensure-workspace validate before-state-modifica
 force-plan: dismiss-plan plan
 
 # dismiss current plan
-dismiss-plan:
+dismiss-plan: ensure-workspace
 	@if [ -f "$(CURRENT_PLAN)" ]; then rm -f $(CURRENT_PLAN_FILE); rm -f $(CURRENT_PLAN); fi
 
 # check if PLAN file is missing
-check-plan-missing: ensure-plan-dir-exists
+check-plan-missing: ensure-workspace ensure-plan-dir-exists
 	@if [ -f "$(PLAN)" ]; then echo "$(RED)Current plan exists. Please dismiss first.$(NC)"; exit 1; fi
 
 # check if PLAN exists
 # uses the current plan as default if PLAN is not defined
-check-plan-exists: ensure-plan-dir-exists
+check-plan-exists: ensure-workspace ensure-plan-dir-exists
 	@if [ ! -f "$(PLAN)" ]; then echo "$(RED)Plan $(PLAN) does not exist.$(NC)"; exit 1; fi
 
 # show PLAN
 # uses the current plan as default if PLAN is not defined
-show-plan: check-plan-exists
+show-plan: ensure-workspace check-plan-exists
 	$(TERRAFORM) show $(PLAN)
 
 current-plan:
 	@echo $(PLAN)
 
 # create a destructive plan
-plan-destroy: check-plan-missing session ensure-workspace before-state-modification
+plan-destroy: check-plan-missing session ensure-workspace validate before-state-modification
 	$(TERRAFORM) plan $(TF_ARGS_PLAN) -out=$(PLAN_OUT) -destroy
 	@echo $(PLAN_OUT) > $(CURRENT_PLAN)
 	@echo ""
@@ -393,7 +398,7 @@ endif
 endif
 
 # apply plan
-apply: check-plan-exists prompt-for-production session ensure-workspace backup-state before-state-modification
+apply: check-plan-exists prompt-for-production session ensure-workspace validate backup-state before-state-modification
 	$(TERRAFORM) apply $(TF_ARGS_LOCK) $(PLAN) $(SILENT_ARG)
 	@rm -f $(CURRENT_PLAN_FILE)
 	@rm -f $(PLAN)
@@ -406,9 +411,9 @@ force-apply: prompt-for-production session ensure-workspace validate backup-stat
 ###
 
 # check infrastructure is up-to-dare
-check-state: session ensure-workspace before-state-modification
+check-state: session ensure-workspace validate dismiss-plan before-state-modification
 	@rm -f exit_status.txt
-	$(TERRAFORM) plan $(TF_ARGS_PLAN) -detailed-exitcode $(VERBOSE_ARG); echo $$? > exit_status.txt
+	$(TERRAFORM) plan $(TF_ARGS_PLAN) -out=$(PLAN_OUT) -detailed-exitcode $(VERBOSE_ARG); echo $$? > exit_status.txt
 
 # list resources in the state
 list: session ensure-workspace
