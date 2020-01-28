@@ -341,10 +341,15 @@ endif
 TF_ARGS = $(TF_ARGS_DEFAULT_VAR_FILE) $(TF_ARGS_VAR_FILE) $(TF_ARGS_VAR_IS_DEPLOYMENT) $(PROVIDER_TERRAFORM_ARGS)
 TF_ARGS_PLAN = $(TF_ARGS_LOCK) $(TF_ARGS)
 
+WRITE_PLAN_STATUS ?= false
+ifeq ($(WRITE_PLAN_STATUS),true)
+	WRITE_PLAN_STATUS_ARG = -detailed-exitcode; echo $$? > exit_status.txt
+endif
+
 # create a new plan, if not exists
 plan: check-plan-missing session ensure-workspace validate before-state-modification
 	@rm -f exit_code.txt
-	$(TERRAFORM) plan $(TF_ARGS_PLAN) -out=$(PLAN_OUT) $(SILENT_ARG)
+	$(TERRAFORM) plan $(TF_ARGS_PLAN) -out=$(PLAN_OUT) $(SILENT_ARG) $(WRITE_PLAN_STATUS_ARG)
 	@echo $(PLAN_OUT) > $(CURRENT_PLAN)
 	@echo "$(GREEN)Plan created at $(YELLOW)$(PLAN_OUT)$(GREEN) and made current.$(NC)"
 	@echo "$(GREEN)Apply with 'make apply'$(NC)"
@@ -409,11 +414,6 @@ force-apply: prompt-for-production session ensure-workspace validate backup-stat
 ###
 ### state and info
 ###
-
-# check infrastructure is up-to-dare
-check-state: session ensure-workspace validate dismiss-plan before-state-modification
-	@rm -f exit_status.txt
-	$(TERRAFORM) plan $(TF_ARGS_PLAN) -out=$(PLAN_OUT) -detailed-exitcode $(VERBOSE_ARG); echo $$? > exit_status.txt
 
 # list resources in the state
 list: session ensure-workspace
