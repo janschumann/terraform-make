@@ -131,6 +131,9 @@ session: access-$(AWS_ROLE_NAME)
 access-$(AWS_ROLE_NAME): verify-aws warn-env-credentials
 	@if [ "1" = "$(IS_EXPIRED)" ]; then $(TERRAFORM_MAKE_LIB_HOME)/aws-session.sh -o $(ORGANISATION) -p $(SESSION_TARGET_PROFILE) -r $(AWS_ROLE_NAME) $(AWS_SESSION_VERBOSE_ARG); fi
 
+show-session-profile:
+	@echo $(ORGANISATION)-$(ACCOUNT)-$(ENVIRONMENT)
+
 show-session-cmd:
 	@echo $(TERRAFORM_MAKE_LIB_HOME)/aws-session.sh -o $(ORGANISATION) -p $(SESSION_TARGET_PROFILE) -r $(AWS_ROLE_NAME)
 
