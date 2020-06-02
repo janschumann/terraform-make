@@ -128,6 +128,9 @@ warn-env-credentials:
 
 session: access-$(AWS_ROLE_NAME)
 
+force-session: reset-account-config
+	$(MAKE) session
+
 access-$(AWS_ROLE_NAME): verify-aws warn-env-credentials
 	@if [ "1" = "$(IS_EXPIRED)" ]; then $(TERRAFORM_MAKE_LIB_HOME)/aws-session.sh -o $(ORGANISATION) -p $(SESSION_TARGET_PROFILE) -r $(AWS_ROLE_NAME) $(AWS_SESSION_VERBOSE_ARG); fi
 
