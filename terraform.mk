@@ -176,6 +176,9 @@ debug-default:
 	@echo SKIP_BACKEND=$(SKIP_BACKEND)
 	@echo BACKEND_TYPE=$(BACKEND_TYPE)
 	@echo VERBOSE_ARG=$(VERBOSE_ARG)
+	@echo
+	@$(TERRAFORM) version
+	@echo
 ifeq ($(VERBOSE),true)
 	@echo TERRAFORM_CMD=$(TERRAFORM_CMD)
 	@echo TERRAFORM=$(TERRAFORM)
@@ -427,3 +430,9 @@ output: session ensure-workspace
 # update the state with information from infrastructure
 refresh: session ensure-workspace backup-state before-state-modification
 	$(TERRAFORM) refresh $(TF_ARGS_PLAN)
+
+# fix provider urls in the state
+state-tf13-upgrade:
+	terraform state pull > original.json
+	sed "s|registry.terraform.io/-/|registry.terraform.io/hashicorp/|" original.json | jq '.serial = .serial + 1' > updated.json
+	terraform state push updated.json
