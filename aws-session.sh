@@ -129,11 +129,15 @@ if [[ -z $CREATE_DATE || $EXPIRE_SOON -lt $DATE ]]; then
 fi
 
 if test -z "${TOKEN}"; then
-  TOKEN=$(eval $AWS_MFA_TOKEN_CMD)
-  if test -z "${TOKEN}"; then
-    echo -n -e "Please enter a token for ${YELLOW}${ORG}${NC}: "
-    read TOKEN
+  if test -n "${AWS_MFA_TOKEN_CMD}"; then
+    $(echo $AWS_MFA_TOKEN_CMD | awk '{print $1}')
+    TOKEN=$(eval $AWS_MFA_TOKEN_CMD) || echo -e "${RED}MFA token could not be retrieved via ${YELLOW}${AWS_MFA_TOKEN_CMD}${NC}"
   fi
+fi
+
+if test -z "${TOKEN}"; then
+  echo -n -e "Please enter a token for ${YELLOW}${ORG}${NC}: "
+  read TOKEN
 fi
 
 if test -z "${TOKEN}"; then
