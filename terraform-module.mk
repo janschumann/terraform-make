@@ -69,3 +69,6 @@ init:
 # format, validate the code and re-initialize
 .DEFAULT_GOAL := default
 default: fmt validate
+
+estimate:
+	scc --exclude-dir .git,.idea,.terraform

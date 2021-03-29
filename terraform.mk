@@ -147,50 +147,6 @@ ifeq ($(ENVIRONMENT),default)
 	LOCAL_STATE_FILE = terraform.tfstate
 endif
 
--include $(TERRAFORM_MAKE_LIB_HOME)/$(TERRAFORM_PROVIDER).mk
--include $(TERRAFORM_MAKE_LIB_HOME)/terraform-backend-$(BACKEND_TYPE).mk
-
-# if no plan is given, and the current plan file does not exist, we try PLAN_OUT as current plan file
-ifeq ($(PLAN),)
-	PLAN := $(CURRENT_PLAN_FILE)
-endif
-# still no plan? use plan out in case we will create and apply a plan at the same time
-ifeq ($(PLAN),)
-	PLAN := $(PLAN_OUT)
-endif
-
-debug-default:
-	@echo ENVIRONMENT=$(ENVIRONMENT)
-	@echo VAR_FILE=$(VAR_FILE)
-	@echo DEFAULT_VAR_FILE=$(DEFAULT_VAR_FILE)
-	@echo TF_ARGS=$(TF_ARGS)
-	@echo TF_ARGS_INIT=$(TF_ARGS_INIT)
-	@echo TF_ARGS_PLAN=$(TF_ARGS_PLAN)
-	@echo CURRENT_PLAN=$(CURRENT_PLAN)
-	@echo CURRENT_PLAN_FILE=$(CURRENT_PLAN_FILE)
-	@echo PLAN=$(PLAN)
-	@echo PLAN_OUT=$(PLAN_OUT)
-	@echo LOCAL_STATE_FILE=$(LOCAL_STATE_FILE)
-	@echo STATE_KEY=$(STATE_KEY)
-	@echo IS_DEPLOYMENT=$(IS_DEPLOYMENT)
-	@echo SKIP_BACKEND=$(SKIP_BACKEND)
-	@echo BACKEND_TYPE=$(BACKEND_TYPE)
-	@echo VERBOSE_ARG=$(VERBOSE_ARG)
-	@echo
-	@$(TERRAFORM) version
-	@echo
-ifeq ($(VERBOSE),true)
-	@echo TERRAFORM_CMD=$(TERRAFORM_CMD)
-	@echo TERRAFORM=$(TERRAFORM)
-	@echo TERRAFORM_PLAN_DIR=$(TERRAFORM_PLAN_DIR)
-	@echo TERRAFORM_CACHE_DIR=$(TERRAFORM_CACHE_DIR)
-	@echo TERRAFORM_STATE_DIR=$(TERRAFORM_STATE_DIR)
-	@echo TERRAFORM_STATE_LOCK=$(TERRAFORM_STATE_LOCK)
-	@echo PRODUCTION_ENVIRONMENT_NAME=$(PRODUCTION_ENVIRONMENT_NAME)
-	@echo EXPIRE=$(EXPIRE)
-	@echo MIN_PERSIST=$(MIN_PERSIST)
-endif
-
 ###
 ### extension targets
 ###
@@ -226,6 +182,64 @@ before-state-modification-default:
 # will be called before all targets that modify the state (refresh, plan, apply)
 before-init-default:
 	@ true
+
+debug-backend-default:
+	@ true
+
+debug-provider-default:
+	@ true
+
+###
+### provider and backend includes
+###
+
+-include $(TERRAFORM_MAKE_LIB_HOME)/$(TERRAFORM_PROVIDER).mk
+-include $(TERRAFORM_MAKE_LIB_HOME)/terraform-backend-$(BACKEND_TYPE).mk
+
+# if no plan is given, and the current plan file does not exist, we try PLAN_OUT as current plan file
+ifeq ($(PLAN),)
+	PLAN := $(CURRENT_PLAN_FILE)
+endif
+# still no plan? use plan out in case we will create and apply a plan at the same time
+ifeq ($(PLAN),)
+	PLAN := $(PLAN_OUT)
+endif
+
+###
+###
+### debug
+###
+###
+
+debug: debug-terraform debug-provider debug-backend
+
+debug-terraform:
+	@echo VAR_FILE=$(VAR_FILE)
+	@echo DEFAULT_VAR_FILE=$(DEFAULT_VAR_FILE)
+	@echo STATE_KEY=$(STATE_KEY)
+	@echo IS_DEPLOYMENT=$(IS_DEPLOYMENT)
+	@echo SKIP_BACKEND=$(SKIP_BACKEND)
+	@echo BACKEND_TYPE=$(BACKEND_TYPE)
+	$(TERRAFORM) version
+	@echo
+ifeq ($(VERBOSE),true)
+	@echo TERRAFORM_CMD=$(TERRAFORM_CMD)
+	@echo TERRAFORM=$(TERRAFORM)
+	@echo TERRAFORM_PLAN_DIR=$(TERRAFORM_PLAN_DIR)
+	@echo TERRAFORM_CACHE_DIR=$(TERRAFORM_CACHE_DIR)
+	@echo TERRAFORM_STATE_DIR=$(TERRAFORM_STATE_DIR)
+	@echo TERRAFORM_STATE_LOCK=$(TERRAFORM_STATE_LOCK)
+	@echo PRODUCTION_ENVIRONMENT_NAME=$(PRODUCTION_ENVIRONMENT_NAME)
+	@echo EXPIRE=$(EXPIRE)
+	@echo MIN_PERSIST=$(MIN_PERSIST)
+	@echo TF_ARGS=$(TF_ARGS)
+	@echo TF_ARGS_PLAN=$(TF_ARGS_PLAN)
+	@echo CURRENT_PLAN=$(CURRENT_PLAN)
+	@echo CURRENT_PLAN_FILE=$(CURRENT_PLAN_FILE)
+	@echo PLAN=$(PLAN)
+	@echo PLAN_OUT=$(PLAN_OUT)
+	@echo LOCAL_STATE_FILE=$(LOCAL_STATE_FILE)
+endif
 
 ###
 ###
@@ -291,9 +305,9 @@ default: fmt validate
 ###
 ### initialzation
 ###
-TF_ARGS_INIT = -lock=$(TERRAFORM_STATE_LOCK) $(BACKEND_TERRAFORM_INIT_ARGS)
+TF_ARGS_INIT = $(BACKEND_TERRAFORM_INIT_ARGS)
 ifeq ($(SKIP_BACKEND),true)
-	TF_ARGS_INIT = -lock=false -backend=false
+	TF_ARGS_INIT = -backend=false
 endif
 
 # force re-initialization of terraform state
@@ -436,3 +450,19 @@ state-tf13-upgrade:
 	terraform state pull > original.json
 	sed "s|registry.terraform.io/-/|registry.terraform.io/hashicorp/|" original.json | jq '.serial = .serial + 1' > updated.json
 	terraform state push updated.json
+
+estimate:
+	scc --exclude-dir .git,.idea,.terraform
+
+tflint: TF_LINT_ARGS := $(shell echo $(TF_ARGS) | sed "s/-var/--var/g")
+tflint:
+	tflint $(TF_LINT_ARGS) .
+
+tfsec: TF_SEC_ARGS := $(shell echo $(TF_ARGS_DEFAULT_VAR_FILE) $(TF_ARGS_VAR_FILE) | sed "s/-var-file/--tfvars-file/g")
+tfsec:
+	tfsec --config-file .tfsec.yaml $(TF_SEC_ARGS) .
+
+checkov: ensure-workspace
+	terraform show -json $(PLAN) | jq '.' > tf.json
+	checkov -f tf.json --quiet --compact
+	rm -f tf.json

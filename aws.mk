@@ -102,6 +102,12 @@ EXPIRE = $(shell aws --profile $(ORGANISATION)-$(SESSION_TARGET_PROFILE) configu
 # never expire a session for deployments and in china region
 IS_EXPIRED ?= $(shell if ([ -z $(EXPIRE) ] || [ $(EXPIRE) -lt $(MIN_PERSIST) ]) && [ "$(REGION)" != "cn-north-1" ] && [ "$(IS_DEPLOYMENT)" != "true" ]; then echo 1; else echo 0; fi)
 
+debug-provider:
+	$(AWS) --version
+	@echo
+	@echo AWS_PROFILE=$(AWS_PROFILE)
+	@echo PROVIDER_TERRAFORM_ARGS=$(PROVIDER_TERRAFORM_ARGS)
+
 verify-aws: warn-env-credentials
 	@if [ -z "$(ORGANISATION)" ]; then echo "$(RED)Please define an ORGANISATION$(NC)"; exit 1; fi
 	@if [ -z "$(ACCOUNT)" ]; then echo "$(RED)Please define an ACCOUNT$(NC)"; exit 1; fi

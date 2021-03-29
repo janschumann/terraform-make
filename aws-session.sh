@@ -148,7 +148,7 @@ fi
 
 CMD="aws sts --profile ${PROFILE} assume-role \
     --role-arn arn:aws:iam::${TO_ACCOUNT_ID}:role/${ROLE} \
-    --role-session-name ${TO_ACCOUNT_ID}-${TO_PROFILE}-${ROLE} \
+    --role-session-name ${TO_PROFILE}-${USER} \
     --serial-number arn:aws:iam::${MAIN_ACCOUNT_ID}:mfa/${USER} \
     --token-code ${TOKEN}"
 
