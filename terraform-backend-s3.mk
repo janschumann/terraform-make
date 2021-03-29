@@ -19,6 +19,7 @@ STATE_NAME ?= account
 
 # the state key
 STATE_KEY ?= $(ACCOUNT)/$(REGION)/$(STATE_NAME).tfstate
+STATE_PATH := $(STATE_CONTAINER)/env:/$(ENVIRONMENT)/$(STATE_KEY)
 
 # the kms key to encrypt state files in s3
 VAR_FILE_KMS_KEY_ARN := $(shell if [ -f $(VAR_FILE) ]; then cat $(VAR_FILE) | grep "^kms_key_id[[:space:]]*=" | sed 's/^[^"]*"\(.*\)".*/\1/'; fi)
@@ -38,35 +39,43 @@ ifeq ($(STATE_ENCRYPT),false)
 	KMS_KEY_ARN :=
 endif
 
-STATE_BACKEND_S3_CONFIG_INIT_ARGS = -backend-config="bucket=$(STATE_CONTAINER)" -backend-config="key=$(STATE_KEY)" -backend-config="region=$(STATE_BACKEND_REGION)" -backend-config="encrypt=$(STATE_ENCRYPT)" -backend-config="acl=authenticated-read"
+STATE_BACKEND_S3_CONFIG_INIT_ARGS = "bucket=\"$(STATE_CONTAINER)\"\nkey=\"$(STATE_KEY)\"\nregion=\"$(STATE_BACKEND_REGION)\"\n"
 MIN_STATE_BACKEND_S3_CONFIG_INIT_ARGS = $(STATE_BACKEND_S3_CONFIG_INIT_ARGS)
 ifeq ($(TERRAFORM_STATE_LOCK),true)
-	MIN_STATE_BACKEND_S3_CONFIG_INIT_ARGS = $(STATE_BACKEND_S3_CONFIG_INIT_ARGS) -backend-config="dynamodb_table=$(STATE_LOCK_TABLE)"
+	MIN_STATE_BACKEND_S3_CONFIG_INIT_ARGS = "$(STATE_BACKEND_S3_CONFIG_INIT_ARGS)\ndynamodb_table=$(STATE_LOCK_TABLE)"
 endif
 MIN_STATE_BACKEND_S3_INIT_ARGS = $(MIN_STATE_BACKEND_S3_CONFIG_INIT_ARGS)
 # only add profile backend config, if not deploying
 # on deployment, the IAM instance profile of the jenkins build slave
 # should be used
 ifneq ($(IS_DEPLOYMENT),true)
-	MIN_STATE_BACKEND_S3_INIT_ARGS = $(MIN_STATE_BACKEND_S3_CONFIG_INIT_ARGS) -backend-config="profile=$(AWS_PROFILE)"
+	MIN_STATE_BACKEND_S3_INIT_ARGS = "$(STATE_BACKEND_S3_CONFIG_INIT_ARGS)profile=\"$(AWS_PROFILE)\"\\n"
 endif
 
-BACKEND_TERRAFORM_INIT_ARGS = $(MIN_STATE_BACKEND_S3_INIT_ARGS)
+BACKEND_TERRAFORM_CONFIG = $(MIN_STATE_BACKEND_S3_INIT_ARGS)
 ifneq ($(KMS_KEY_ARN),)
-	BACKEND_TERRAFORM_INIT_ARGS = $(MIN_STATE_BACKEND_S3_INIT_ARGS) -backend-config="kms_key_id=$(KMS_KEY_ARN)"
+	BACKEND_TERRAFORM_CONFIG = "$(MIN_STATE_BACKEND_S3_INIT_ARGS)kms_key_id=\"$(KMS_KEY_ARN)\""
 endif
 
+BACKEND_TERRAFORM_INIT_ARGS = -backend-config=.backend-$(ACCOUNT)-$(ENVIRONMENT).tfvars
 ifeq ($(SKIP_BACKEND),true)
-	BACKEND_TERRAFORM_INIT_ARGS = -backend=false
+	BACKEND_TERRAFORM_INIT_ARGS := -backend=false
 endif
 
 ifneq ($(SKIP_BACKEND),true)
 	LOCAL_STATE_FILE := $(TERRAFORM_CACHE_DIR)/terraform.tfstate
 endif
 
+debug-backend:
+	@echo AWS s3 terraform backend debug:
+	@echo BACKEND_TERRAFORM_INIT_ARGS=$(BACKEND_TERRAFORM_INIT_ARGS)
+
+ensure-backend-config:
+	@echo $(BACKEND_TERRAFORM_CONFIG) > .backend-$(ACCOUNT)-$(ENVIRONMENT).tfvars
+
 init: CURRENT_STATE_KEY = $(shell if [ -f $(LOCAL_STATE_FILE) ]; then cat $(LOCAL_STATE_FILE) | grep "\"key\":" | awk -F\" '{print $$4}'; fi)
 init: CURRENT_PROFILE = $(shell if [ -f $(LOCAL_STATE_FILE) ]; then cat $(LOCAL_STATE_FILE) | grep "\"profile\":" | awk -F\" '{print $$4}'; fi)
-init: warn-env-credentials
+init: ensure-backend-config warn-env-credentials
 	$(shell if [ ! -f $(LOCAL_STATE_FILE) ] || ([ "$(IS_DEPLOYMENT)" != "true" ] && ([ "$(CURRENT_PROFILE)" != "$(AWS_PROFILE)" ] || [ "$(CURRENT_STATE_KEY)" != "$(STATE_KEY)" ])); then echo $(MAKE) force-init; fi)
 
 disable-backend:
@@ -85,3 +94,6 @@ push-local-state: ensure-environment enable-backend force-init ensure-workspace
 	@read -p "Are you sure? (only yes will be accepted): " deploy; \
 	if [[ $$deploy != "yes" ]]; then exit 1; fi
 	$(TERRAFORM) state push $(ACCOUNT)-$(ENVIRONMENT).tfstate
+
+drift: ensure-workspace
+	AWS_PROFILE=$(AWS_PROFILE) driftctl scan --from tfstate+s3://$(STATE_PATH)

@@ -1,15 +1,23 @@
 STATE_KEY ?= $(STATE_NAME).tfstate
 
 AZURERM_BACKEND_SUBSCRIPTION ?= $(ENVIRONMENT)
-BACKEND_TERRAFORM_INIT_ARGS = -backend-config="storage_account_name=$(AZURERM_BACKEND_STORAGE_ACCOUNT_NAME)" -backend-config="container_name=$(STATE_BACKEND_CONTAINER)" -backend-config="access_key=$(AZURERM_BACKEND_STORAGE_ACCOUNT_ACCESS_KEY)" -backend-config="key=$(STATE_KEY)"
+BACKEND_TERRAFORM_CONFIG = "storage_account_name=\"$(AZURERM_BACKEND_STORAGE_ACCOUNT_NAME)\"\ncontainer_name=\"$(STATE_BACKEND_CONTAINER)\"\naccess_key=\"$(AZURERM_BACKEND_STORAGE_ACCOUNT_ACCESS_KEY)\"\nkey=\"$(STATE_KEY)\"\n"
 
+BACKEND_TERRAFORM_INIT_ARGS = -backend-config=.backend-$(ACCOUNT)-$(ENVIRONMENT).tfvars
 ifeq ($(SKIP_BACKEND),true)
-	BACKEND_TERRAFORM_INIT_ARGS = -backend=false
+	BACKEND_TERRAFORM_INIT_ARGS := -backend=false
 endif
 
 ifneq ($(SKIP_BACKEND),true)
 	LOCAL_STATE_FILE := $(TERRAFORM_CACHE_DIR)/terraform.tfstate
 endif
+
+ensure-backend-config:
+	@echo $(BACKEND_TERRAFORM_CONFIG) > .backend-$(ACCOUNT)-$(ENVIRONMENT).tfvars
+
+debug-backend:
+	@echo AWS s3 terraform backend debug:
+	@echo BACKEND_TERRAFORM_INIT_ARGS=$(BACKEND_TERRAFORM_INIT_ARGS)
 
 init: CURRENT_STATE_KEY = $(shell if [ -f $(LOCAL_STATE_FILE) ]; then cat $(LOCAL_STATE_FILE) | grep "\"key\":" | awk -F\" '{print $$4}'; fi)
 init: CURRENT_PROFILE = $(shell if [ -f $(LOCAL_STATE_FILE) ]; then cat $(LOCAL_STATE_FILE) | grep "\"profile\":" | awk -F\" '{print $$4}'; fi)
