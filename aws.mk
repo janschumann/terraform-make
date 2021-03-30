@@ -62,9 +62,6 @@ else
 	REGION ?= $(VAR_FILE_REGION)
 endif
 
-ifeq ($(VERBOSE),true)
-	AWS_SESSION_VERBOSE_ARG = "-v"
-endif
 AWS_ROLE_NAME ?= $(AWS_DEFAULT_ROLE_NAME)
 
 ifeq ($(IS_DEPLOYMENT),true)
@@ -118,9 +115,6 @@ verify-credentials: warn-env-credentials
 	@if [ -z "$(ACCESS_KEY_ID)" ]; then echo "$(RED)Please define an access key$(NC)"; exit 1; fi
 	@if [ -z "$(SECRET_ACCESS_KEY)" ]; then echo "$(RED)Please define an secret access key$(NC)"; exit 1; fi
 
-verify-active-session: warn-env-credentials
-	@if [ "1" = "$(IS_EXPIRED)" ]; then echo "$(RED)Your Session $(YELLOW)$(AWS_PROFILE)$(RED) has expired. Aborting.$(NC)"; exit 1; fi
-
 warn-env-credentials:
 	@if [ "$(shell env | grep AWS_PROFILE)" ]; then echo "$(YELLOW)WARNING: AWS_PROFILE is defined as env variable$(NC)"; fi
 	@if [ "$(shell env | grep AWS_ACCESS_KEY_ID)" ]; then echo "$(YELLOW)WARNING: AWS_ACCESS_KEY_ID is defined as env variable$(NC)"; fi
@@ -132,7 +126,7 @@ force-session: reset-account-config
 	$(MAKE) session
 
 access-$(AWS_ROLE_NAME): verify-aws warn-env-credentials
-	@if [ "1" = "$(IS_EXPIRED)" ]; then $(TERRAFORM_MAKE_LIB_HOME)/aws-session.sh -o $(ORGANISATION) -p $(SESSION_TARGET_PROFILE) -r $(AWS_ROLE_NAME) $(AWS_SESSION_VERBOSE_ARG); fi
+	@if [ "1" = "$(IS_EXPIRED)" ]; then $(TERRAFORM_MAKE_LIB_HOME)/aws-session.sh -o $(ORGANISATION) -p $(SESSION_TARGET_PROFILE) -r $(AWS_ROLE_NAME); fi
 
 show-session-profile:
 	@echo $(ORGANISATION)-$(ACCOUNT)-$(ENVIRONMENT)
