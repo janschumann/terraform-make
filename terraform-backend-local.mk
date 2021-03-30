@@ -2,8 +2,14 @@
 ### Local state
 ###
 
-BACKEND_TERRAFORM_INIT_ARGS := -backend=false
-LOCAL_STATE_FILE := terraform.tfstate.d/$(ENVIRONMENT)/terraform.tfstate
+TERRAFORM_STATE_LOCK := false
+BACKEND_TERRAFORM_INIT_ARGS :=
 
-init:
-	$(shell if [ ! -f $(LOCAL_STATE_FILE) ]; then echo $(MAKE) force-init; fi)
+init: LOCAL_STATE_DIR := terraform.tfstate.d/$(ENVIRONMENT)
+init: session
+	$(shell if [ ! -d $(LOCAL_STATE_DIR) ]; then echo $(MAKE) force-init ensure-workspace; fi)
+	@echo "$(ACCOUNT)" > $(TERRAFORM_CACHE_DIR)/local_backend_account.txt
+
+clean-state:
+	@rm -f $(TERRAFORM_CACHE_DIR)/local_backend_account.txt
+	@rm -f $(TERRAFORM_CACHE_DIR)/environment

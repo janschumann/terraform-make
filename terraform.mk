@@ -5,17 +5,11 @@
 ### and/or backend state config
 ###
 ### Public variables:
-###   - ENVIRONMENT (required before include)
-###   - ORGANISATION
-###   - ACCOUNT
-###   - ACCOUNT_ID
-###   - REGION
-###   - DEFAULT_REGION
-###   - STATE_BACKEND_REGION
-###   - STATE_BACKEND_CONTAINER
-###   - STATE_NAME
-###   - STATE_KEY
-###   - PROVIDER_TERRAFORM_INIT_ARGS => an extension can introduce this variable to control initialisation
+###   - VAR_FILE         => a terraform tfvars file (required)
+###   - DEFAULT_VAR_FILE => variables shared between environments, default: default.tfvars
+###   - PROVIDER         => aws and azure are currently supported, default: aws
+###   - BACKEND_TYPE     => s3 and azurerm arecurrently supported, default: s3
+###   - STATE_NAME       => the state filename, default: unknown
 ###
 ### Public targets:
 ###   - fmt              => format terraform code recursively
@@ -28,13 +22,10 @@
 ###   - refresh			 => refresh the state
 ###
 ### Extension targets:
-###   - install-community-plugins => should install plugins that cannot be installed by terraform init
 ###   - init                      => By default, the backend is always initialized on every call that
 ###                                  operates on the state. If it is posible to determine if a re-initialisation
 ###                                  this target should be extended to conditionally call force-init
-###   - verify-active-session     => should fail, if no valid credentials can be found or the session is expired
 ###   - session                   => Get a new session for the cooresponding provider
-###	  - ensure-backend            => create backend.tf file containing the backend decalration
 ###   - backup-state			  => will be called befor modifying the state.
 ###   - debug			          => Add some variable values to debug oputput
 ###   - before-state-modification => will be called before all targets that modify the state (refresh, plan, apply)
@@ -68,40 +59,6 @@ ifeq ($(TERRAFORM_CACHE_DIR),)
 	TERRAFORM_CACHE_DIR := .terraform
 endif
 
-# terraforms state dir. state initialization is done here
-TERRAFORM_STATE_DIR := terraform.tfstate.d
-
-# if no specific backend gets loaded, this setting has no effect
-# backends MUST clear all backend initialisation parameters if this is set to true
-SKIP_BACKEND ?= false
-
-# wether to lock state operations
-# defaults to true
-# may be disabled for backend that do not support locking
-TERRAFORM_STATE_LOCK ?= true
-ifeq ($(SKIP_BACKEND),true)
-	TERRAFORM_STATE_LOCK = false
-	BACKEND_TYPE =
-endif
-
-ifeq ($(VERBOSE),true)
-	VERBOSE := true
-	VERBOSE_ARG :=
-	SILENT := false
-else
-	VERBOSE := false
-	VERBOSE_ARG := &> /dev/null
-	SILENT ?= false
-endif
-
-ifeq ($(SILENT),true)
-	SILENT := true
-	SILENT_ARG := &> /dev/null
-else
-	SILENT := false
-	SILENT_ARG :=
-endif
-
 # indicates a deployment
 # this causes this build tool to omit profile configuration
 # on terraform backend initialisation to delegate that to IAM instance profile
@@ -115,20 +72,41 @@ IS_DEPLOYMENT ?= false
 # used to display warning when attempting to deploy to this environment
 PRODUCTION_ENVIRONMENT_NAME ?= prod
 
-# var file to load environment specific values from
-# defaults to terraform.tfvars
-VAR_FILE ?= terraform.tfvars
+# default provider and backend
+TERRAFORM_PROVIDER ?= aws
+BACKEND_TYPE ?= s3
+
+# VAR_FILE is the main parameter source in terraform tfvars format
+# This is required, but if a state has been initialized,
+# we can try to load the file name from there
+ifeq ($(VAR_FILE),)
+-include $(TERRAFORM_MAKE_LIB_HOME)/terraform-local-state-backend-$(BACKEND_TYPE).mk
+endif
+
+# still empty? use the default
+ifeq ($(VAR_FILE),)
+	VAR_FILE := default.tfvars
+endif
+
+# DEFAULT_VAR_FILE will always be loaded. defaults to VAR_FILE if emtpy
 DEFAULT_VAR_FILE ?= default.tfvars
 ifeq ($(wildcard $(DEFAULT_VAR_FILE)),)
+	# no default var file? use the VAR_FILE instead
 	DEFAULT_VAR_FILE = $(VAR_FILE)
 endif
 
-# the environment of this configuration
-VAR_FILE_ENVIRONMENT := $(shell if [ -f "$(VAR_FILE)" ]; then cat $(VAR_FILE) | grep "^environment[[:space:]]*=" | sed 's/^[^"]*"\(.*\)".*/\1/'; fi)
-ifeq ($(VAR_FILE_ENVIRONMENT),)
-	ENVIRONMENT ?= $(shell if [ -f "$(DEFAULT_VAR_FILE)" ]; then cat $(DEFAULT_VAR_FILE) | grep "^environment[[:space:]]*=" | sed 's/^[^"]*"\(.*\)".*/\1/'; fi)
-else
-	ENVIRONMENT ?= $(VAR_FILE_ENVIRONMENT)
+# determine the environment
+ENVIRONMENT := $(shell if [ -f "$(VAR_FILE)" ]; then cat $(VAR_FILE) | grep "^environment[[:space:]]*=" | sed 's/^[^"]*"\(.*\)".*/\1/'; fi)
+ifeq ($(ENVIRONMENT),)
+	# fallback to default
+	ENVIRONMENT := $(shell if [ -f "$(DEFAULT_VAR_FILE)" ]; then cat $(DEFAULT_VAR_FILE) | grep "^environment[[:space:]]*=" | sed 's/^[^"]*"\(.*\)".*/\1/'; fi)
+endif
+
+# if no environment is specified, use the default environment without a backend
+# this is mainly used for targets that need basic initialization (e.g. validate)
+ifeq ($(ENVIRONMENT),)
+	ENVIRONMENT := default
+	BACKEND_TYPE :=
 endif
 
 # this contains the actual file name of the current plan
@@ -142,11 +120,7 @@ CURRENT_PLAN_FILE := $(shell if [ -f "$(CURRENT_PLAN)" ]; then cat $(CURRENT_PLA
 # backends MUST override this setting
 PLAN_OUT := $(TERRAFORM_PLAN_DIR)/$(ENVIRONMENT).plan
 
-LOCAL_STATE_FILE ?= $(TERRAFORM_STATE_DIR)/$(ENVIRONMENT)/terraform.tfstate
-ifeq ($(ENVIRONMENT),default)
-	LOCAL_STATE_FILE = terraform.tfstate
-endif
-
+# include provider and backend plugins
 -include $(TERRAFORM_MAKE_LIB_HOME)/$(TERRAFORM_PROVIDER).mk
 -include $(TERRAFORM_MAKE_LIB_HOME)/terraform-backend-$(BACKEND_TYPE).mk
 
@@ -175,18 +149,13 @@ debug-default:
 	@echo IS_DEPLOYMENT=$(IS_DEPLOYMENT)
 	@echo SKIP_BACKEND=$(SKIP_BACKEND)
 	@echo BACKEND_TYPE=$(BACKEND_TYPE)
-	@echo VERBOSE_ARG=$(VERBOSE_ARG)
-ifeq ($(VERBOSE),true)
 	@echo TERRAFORM_CMD=$(TERRAFORM_CMD)
 	@echo TERRAFORM=$(TERRAFORM)
 	@echo TERRAFORM_PLAN_DIR=$(TERRAFORM_PLAN_DIR)
 	@echo TERRAFORM_CACHE_DIR=$(TERRAFORM_CACHE_DIR)
-	@echo TERRAFORM_STATE_DIR=$(TERRAFORM_STATE_DIR)
-	@echo TERRAFORM_STATE_LOCK=$(TERRAFORM_STATE_LOCK)
 	@echo PRODUCTION_ENVIRONMENT_NAME=$(PRODUCTION_ENVIRONMENT_NAME)
 	@echo EXPIRE=$(EXPIRE)
 	@echo MIN_PERSIST=$(MIN_PERSIST)
-endif
 
 ###
 ### extension targets
@@ -196,16 +165,12 @@ endif
 %: %-default
 	@ true
 
+# if the local state file is missing or a deployment is in progress, we need to initialize
+# this target can be extended by backends
+init-default: force-init
+
 # should install plugins that cannot be installed by terraform init
 install-community-plugins-default:
-	@ true
-
-# should fail, if no valid credentials can be found or the session is expired
-verify-active-session-default:
-	@ true
-
-# should create a backend.tf file contining the base backend declaration
-ensure-backend-default:
 	@ true
 
 # get a new session
@@ -224,6 +189,16 @@ before-state-modification-default:
 before-init-default:
 	@ true
 
+# each backend can provide a backend.tf target, which
+# should create the backend.tf file which contains the terraform backend config
+# no backend config if no backend plugin is loaded
+backend.tf-default: remove-backend
+
+# each backend should implement this target
+# which should clean up local files related to the state
+clean-state-default:
+	@ true
+
 ###
 ###
 ### validation
@@ -239,7 +214,6 @@ validate-fmt:
 	@echo "==> $(GREEN)Ok.$(NC)"
 
 # validate code
-validate-code: SKIP_BACKEND := true
 validate-code: init
 	$(TERRAFORM) validate
 
@@ -248,7 +222,7 @@ fmt:
 	@$(TERRAFORM) fmt -recursive
 
 # format and validate
-fmt-and-validate: init fmt validate
+fmt-and-validate: fmt validate
 
 ensure-plan-dir-exists:
 	@mkdir -p $(TERRAFORM_PLAN_DIR)
@@ -260,8 +234,6 @@ ensure-plan-dir-exists:
 # force remove terraform cache dir
 force-clean-terraform-cache: clean-terraform-cache
 	@rm -rf $(TERRAFORM_CACHE_DIR)
-	@rm -rf $(TERRAFORM_STATE_DIR)
-	@rm -rf terraform.tfstate
 
 # ensure terraform needs to re-init
 # modules and plgins will not be removed
@@ -274,10 +246,10 @@ clean-terraform-plans:
 	@rm -rf exit_status.txt
 
 # clean plans and terraform cache
-clean-all: clean-terraform-cache clean-terraform-plans
+clean-all: clean-terraform-cache clean-terraform-plans remove-backend
 
 # clean plans and terraform cache
-force-clean-all: force-clean-terraform-cache clean-terraform-plans
+force-clean-all: force-clean-terraform-cache clean-terraform-plans remove-backend
 
 ###
 ### default
@@ -288,33 +260,25 @@ default: fmt validate
 ###
 ### initialzation
 ###
-TF_ARGS_INIT = -lock=$(TERRAFORM_STATE_LOCK) $(BACKEND_TERRAFORM_INIT_ARGS)
-ifeq ($(SKIP_BACKEND),true)
-	TF_ARGS_INIT = -lock=false -backend=false
-endif
+TF_ARGS_INIT = $(BACKEND_TERRAFORM_INIT_ARGS)
 
 # force re-initialization of terraform state
-force-init: install-community-plugins session ensure-backend before-init
-	@rm -rf $(TERRAFORM_CACHE_DIR)/terraform.tfstate
-	@rm -rf $(TERRAFORM_CACHE_DIR)/environment
-	$(TERRAFORM) init $(TF_ARGS_INIT) $(SILENT_ARG)
+force-init: backend.tf install-community-plugins before-init clean-state .tf-init ensure-workspace
 
-# if the local state file is missing or a deployment is in progress, we need to initialize
-# this target can be extended by backends
-init-default: session
-	echo $(MAKE) force-init
+.tf-init:
+	$(TERRAFORM) init $(TF_ARGS_INIT)
 
 # update modules
 update-modules:
-	$(TERRAFORM) get -update=true $(SILENT_ARG)
+	$(TERRAFORM) get -update=true
 
 # create a new workspace
-create-workspace: session init
+create-workspace: init
 	@$(TERRAFORM) workspace select $(ENVIRONMENT) &> /dev/null || $(TERRAFORM) workspace new $(ENVIRONMENT)
 
 # ensure workspace selected
-ensure-workspace: session init ensure-backend
-	@if [ "$(shell $(TERRAFORM) workspace show)" != "$(ENVIRONMENT)" ]; then $(TERRAFORM) workspace select $(ENVIRONMENT) $(SILENT_ARG) || $(TERRAFORM) workspace new $(ENVIRONMENT); fi
+ensure-workspace: init
+	@if [ "$(shell $(TERRAFORM) workspace show)" != "$(ENVIRONMENT)" ]; then $(TERRAFORM) workspace select $(ENVIRONMENT)  || $(TERRAFORM) workspace new $(ENVIRONMENT); fi
 
 # list configured workspaces
 list-configured-workspaces:
@@ -322,7 +286,7 @@ list-configured-workspaces:
 	@find . -name "$(ACCOUNT)-*.tfvars" | grep -v default | awk -F'-' '{print $$2}' | sed 's/.tfvars//' | sort -u
 
 # list workspaces that exist in backend
-list-existing-workspaces: session init
+list-existing-workspaces: init
 	@echo "$(YELLOW)Workspaces created for $(GREEN)$(ACCOUNT)$(NC)$(YELLOW):$(NC)"
 	@$(TERRAFORM) workspace list | grep -v default | sed 's/* //' | sort -u
 
@@ -332,7 +296,14 @@ list-workspaces: list-configured-workspaces list-existing-workspaces
 ###
 ### plan
 ###
-TF_ARGS_LOCK = -lock=$(TERRAFORM_STATE_LOCK)
+TERRAFORM_STATE_LOCK ?= false
+ifeq ($(TERRAFORM_STATE_LOCK),true)
+	TF_ARGS_LOCK := -lock=$(TERRAFORM_STATE_LOCK)
+endif
+ifeq ($(DISABLE_STATE_LOCK),true)
+	TF_ARGS_LOCK :=
+endif
+
 TF_ARGS_VAR_IS_DEPLOYMENT = -var 'is_deployment=$(IS_DEPLOYMENT)'
 TF_ARGS_VAR_FILE = -var-file '$(VAR_FILE)'
 ifneq ($(DEFAULT_VAR_FILE),$(VAR_FILE))
@@ -347,9 +318,9 @@ ifeq ($(WRITE_PLAN_STATUS),true)
 endif
 
 # create a new plan, if not exists
-plan: check-plan-missing session ensure-workspace validate before-state-modification
+plan: check-plan-missing ensure-workspace validate before-state-modification
 	@rm -f exit_code.txt
-	$(TERRAFORM) plan $(TF_ARGS_PLAN) -out=$(PLAN_OUT) $(SILENT_ARG) $(WRITE_PLAN_STATUS_ARG)
+	$(TERRAFORM) plan $(TF_ARGS_PLAN) -out=$(PLAN_OUT)  $(WRITE_PLAN_STATUS_ARG)
 	@echo $(PLAN_OUT) > $(CURRENT_PLAN)
 	@echo "$(GREEN)Plan created at $(YELLOW)$(PLAN_OUT)$(GREEN) and made current.$(NC)"
 	@echo "$(GREEN)Apply with 'make apply'$(NC)"
@@ -380,7 +351,7 @@ current-plan:
 	@echo $(PLAN)
 
 # create a destructive plan
-plan-destroy: check-plan-missing session ensure-workspace validate before-state-modification
+plan-destroy: check-plan-missing ensure-workspace validate before-state-modification
 	$(TERRAFORM) plan $(TF_ARGS_PLAN) -out=$(PLAN_OUT) -destroy
 	@echo $(PLAN_OUT) > $(CURRENT_PLAN)
 	@echo ""
@@ -403,27 +374,45 @@ endif
 endif
 
 # apply plan
-apply: check-plan-exists prompt-for-production session ensure-workspace validate backup-state before-state-modification
-	$(TERRAFORM) apply $(TF_ARGS_LOCK) $(PLAN) $(SILENT_ARG)
+apply: check-plan-exists prompt-for-production ensure-workspace validate backup-state before-state-modification
+	$(TERRAFORM) apply $(TF_ARGS_LOCK) $(PLAN)
 	@rm -f $(CURRENT_PLAN_FILE)
 	@rm -f $(PLAN)
 
 force-apply: prompt-for-production session ensure-workspace validate backup-state before-state-modification
-	$(TERRAFORM) apply $(TF_ARGS_PLAN) -auto-approve $(SILENT_ARG)
+	$(TERRAFORM) apply $(TF_ARGS_PLAN) -auto-approve
 
 ###
 ### state and info
 ###
 
 # list resources in the state
-list: session ensure-workspace
+list: ensure-workspace
 	$(TERRAFORM) state list
 
 # display output variables from the state
 output: ITEM ?=
-output: session ensure-workspace
+output: ensure-workspace
 	$(TERRAFORM) output $(ITEM)
 
 # update the state with information from infrastructure
-refresh: session ensure-workspace backup-state before-state-modification
+refresh: ensure-workspace backup-state before-state-modification
 	$(TERRAFORM) refresh $(TF_ARGS_PLAN)
+
+###
+### maintain the backend config
+###
+remove-backend:
+	@$(shell rm -f backend.tf*)
+
+disable-backend:
+	@$(shell mv backend.tf backend.tf.disabled || true)
+
+enable-backend:
+	@$(shell mv backend.tf.disabled backend.tf || true)
+	@if [[ ! -f backend.tf ]]; then echo "$(RED)Could not enable backend!!$(NC)"; exit 1; fi
+
+re-write-backend: remove-backend backend.tf
+
+backup-local-state:
+	@mv terraform.tfstate.d terraform.tfstate.d.backup

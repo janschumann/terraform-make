@@ -38,9 +38,6 @@ verify-azure:
 	@if [ -z "$(ENVIRONMENT)" ]; then echo "$(RED)Please define an ENVIRONMENT$(NC)"; exit 1; fi
 	@command -v $(AZURE_CLI) > /dev/null || echo "$(RED)azure cli not installed$(NC)"
 
-verify-active-session: verify-azure
-	@$(AZURE_CLI) account list | jq '.[].name' | grep $(ENVIRONMENT) &> /dev/null || (echo "$(RED)Subscription not found. Need az login?$(NC) $(YELLOW)$(ENVIRONMENT)$(NC)"; exit 1)
-
 session: azure-login
 	@ true
 
