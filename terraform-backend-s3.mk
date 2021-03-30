@@ -1,7 +1,7 @@
 ###
 ### S3 backend extension for terraform.mk
 ###
-### Requires aws-session.mk to be included before
+### Requires aws.mk to be included before
 ###
 
 # s3 supports locking
@@ -44,10 +44,10 @@ endif
 init: LOCAL_STATE_FILE := $(TERRAFORM_CACHE_DIR)/terraform.tfstate
 init: CURRENT_STATE_KEY := $(shell if [ -f $(LOCAL_STATE_FILE) ]; then cat $(LOCAL_STATE_FILE) | grep "\"key\":" | awk -F\" '{print $$4}'; fi)
 init: CURRENT_PROFILE := $(shell if [ -f $(LOCAL_STATE_FILE) ]; then cat $(LOCAL_STATE_FILE) | grep "\"profile\":" | awk -F\" '{print $$4}'; fi)
-init: session backend.tf warn-env-credentials
+init: backend.tf warn-env-credentials
 	$(shell if [ ! -f $(LOCAL_STATE_FILE) ] || ([ "$(IS_DEPLOYMENT)" != "true" ] && ([ "$(CURRENT_PROFILE)" != "$(AWS_PROFILE)" ] || [ "$(CURRENT_STATE_KEY)" != "$(STATE_KEY)" ])); then echo $(MAKE) force-init; fi)
 
-backend.tf:
+backend.tf: verify-aws
 	@sed 's|$${state_bucket}|$(ORGANISATION)-terraform-state|' $(TERRAFORM_MAKE_LIB_HOME)/terraform-backend-s3.tf.tpl | sed 's|$${state_kms_key_id}|$(KMS_KEY_ARN)|' | sed 's|$${state_region}|$(STATE_BACKEND_REGION)|' | sed 's|$${state_lock_table}|$(STATE_LOCK_TABLE)|' | sed 's|$${state_encrypt}|$(STATE_ENCRYPT)|' | sed 's|$${state_acl}|$(STATE_ACL)|' > backend.tf
 
 push-local-state: ensure-environment force-init ensure-workspace

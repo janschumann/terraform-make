@@ -144,10 +144,8 @@ debug-default:
 	@echo CURRENT_PLAN_FILE=$(CURRENT_PLAN_FILE)
 	@echo PLAN=$(PLAN)
 	@echo PLAN_OUT=$(PLAN_OUT)
-	@echo LOCAL_STATE_FILE=$(LOCAL_STATE_FILE)
 	@echo STATE_KEY=$(STATE_KEY)
 	@echo IS_DEPLOYMENT=$(IS_DEPLOYMENT)
-	@echo SKIP_BACKEND=$(SKIP_BACKEND)
 	@echo BACKEND_TYPE=$(BACKEND_TYPE)
 	@echo TERRAFORM_CMD=$(TERRAFORM_CMD)
 	@echo TERRAFORM=$(TERRAFORM)
@@ -263,9 +261,10 @@ default: fmt validate
 TF_ARGS_INIT = $(BACKEND_TERRAFORM_INIT_ARGS)
 
 # force re-initialization of terraform state
-force-init: backend.tf install-community-plugins before-init clean-state .tf-init ensure-workspace
+force-init: backend.tf install-community-plugins before-init clean-state .tf-init
+	@$(MAKE) ensure-workspace
 
-.tf-init:
+.tf-init: session
 	$(TERRAFORM) init $(TF_ARGS_INIT)
 
 # update modules
