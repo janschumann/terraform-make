@@ -11,7 +11,7 @@ Add the following to your `Makefile`
 ```
 STATE_NAME = my-awesome-workspace
 
--include $(shell curl -sSL -o .terraform-make.mk "https://git.io/terraform-make"; echo .terraform-make.mk)
+-include $(shell curl -sSL -o .terraform-make.mk "https://git.io/install-tf-make"; echo .terraform-make.mk)
 ```
 
 Install the library
