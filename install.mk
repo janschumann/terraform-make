@@ -1,6 +1,6 @@
 TF_MAKE_BRANCH ?= master
 TF_MAKE_CLONE_URL ?= https://github.com/janschumann/terraform-make.git
-TF_MAKE_PATH ?= terraform-make
+TF_MAKE_PATH ?= .terraform-make
 
 -include $(TF_MAKE_PATH)/terraform.mk
 
