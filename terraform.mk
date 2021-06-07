@@ -272,11 +272,11 @@ update-modules:
 	$(TERRAFORM) get -update=true
 
 # create a new workspace
-create-workspace: init
+create-workspace: session init
 	@$(TERRAFORM) workspace select $(ENVIRONMENT) &> /dev/null || $(TERRAFORM) workspace new $(ENVIRONMENT)
 
 # ensure workspace selected
-ensure-workspace: init
+ensure-workspace: session init
 	@if [ "$(shell $(TERRAFORM) workspace show)" != "$(ENVIRONMENT)" ]; then $(TERRAFORM) workspace select $(ENVIRONMENT)  || $(TERRAFORM) workspace new $(ENVIRONMENT); fi
 
 # list configured workspaces
@@ -324,6 +324,13 @@ plan: check-plan-missing ensure-workspace validate before-state-modification
 	@echo "$(GREEN)Plan created at $(YELLOW)$(PLAN_OUT)$(GREEN) and made current.$(NC)"
 	@echo "$(GREEN)Apply with 'make apply'$(NC)"
 	@echo "$(GREEN)Dismiss with 'make dismiss-plan'$(NC)"
+
+plan-json: check-plan-exists ensure-workspace validate
+	$(TERRAFORM) show -json $(CURRENT_PLAN_FILE) | jq -r '( [.resource_changes[]?.change.actions?] | flatten ) | { "create":(map(select(.=="create")) | length), "update":(map(select(.=="update")) | length), "delete":(map(select(.=="delete")) | length) }' > $(CURRENT_PLAN_FILE).json
+
+plan-target:
+	#$(TERRAFORM) plan $(TF_ARGS_PLAN) -out=$(PLAN_OUT) -target $(PLAN_TARGET)
+	@echo $(PLAN_OUT)
 
 # force create new plan
 force-plan: dismiss-plan plan
