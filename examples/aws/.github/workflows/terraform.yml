@@ -1,0 +1,123 @@
+# This is a basic workflow to help you get started with Actions
+
+name: Validate Terraform Code
+
+# Controls when the action will run. Triggers the workflow on push or pull request
+# events but only for the master branch
+#on:
+#  pull_request:
+#    types: [ edited, opened, reopened, labeled, unlabeled, synchronize ]
+
+jobs:
+  validate-terraform:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Get vars from Pull Request
+      id: vars
+      run: |
+        echo ::set-output name=REGEX_TITLE::"^([[]Release[]]|[[]Hotfix[]])?([[]GM-[0-9]+[]]|[[]NO-TICKET[]])"
+    - name: Title has at least one tag [GM-[0-9]+|NO-TICKET] or [Release|Hotfix][GM-[0-9]+|NO-TICKET]
+      env:
+        title: ${{ github.event.pull_request.title }}
+        regex: ${{ steps.vars.outputs.REGEX_TITLE }}.*
+      run: |
+        if [[ $title =~ $regex ]]
+        then
+          exit 0
+        else
+          exit 1
+        fi
+    - name: Title has a space after the tags
+      if: ${{ always() }}
+      env:
+        title: ${{ github.event.pull_request.title }}
+        regex: ${{ steps.vars.outputs.REGEX_TITLE }}[ ].*
+      run: |
+        if [[ $title =~ $regex ]]
+        then
+          exit 0
+        else
+          exit 1
+        fi
+        exit 0
+    - name: Title description has min 5 characters
+      if: ${{ always() }}
+      env:
+        title: ${{ github.event.pull_request.title }}
+        regex: ${{ steps.vars.outputs.REGEX_TITLE }}[ ][A-Za-z].{5,}
+      run: |
+        if [[ $title =~ $regex ]]
+        then
+          exit 0
+        else
+          exit 1
+        fi
+        exit 0
+    - name: It has at least one label
+      if: ${{ always() }}
+      env:
+        labels: ${{ toJson(github.event.pull_request.labels) }}
+      run: |
+        LENGTH=$(echo $labels | jq '. | length' )
+        if [[ $LENGTH -ge 1 ]]
+        then
+          exit 0
+        else
+          exit 1
+        fi
+    - name: Description with min 10 chars
+      if: ${{ always() }}
+      env:
+        body: ${{ github.event.pull_request.body }}
+        title: ${{ github.event.pull_request.title }}
+      run: |
+        BODY_LENGTH=${#body}
+        if [[ $BODY_LENGTH -le 10 ]]
+        then
+            exit 1
+        else
+            exit 0
+        fi
+    - name: NO-TICKET PR has valid description (not the default one)
+      if: ${{ always() }}
+      env:
+        body: ${{ github.event.pull_request.body }}
+        title: ${{ github.event.pull_request.title }}
+        defaultDescription: "**Description** <br/> TODO: Add details about this ticket"
+      run: |
+        IS_NO_TICKET=${{ contains(env.title, '[NO-TICKET]')}}
+        CONTAINS_DEFAULT_TITLE=${{ contains(env.body, env.defaultDescription) }}
+        if [[ "$IS_NO_TICKET" == "true" && $CONTAINS_DEFAULT_TITLE == "true" ]]
+        then
+            exit 1
+        else
+            exit 0
+        fi
+    - name: Release PR has release tag
+      if: ${{ always() }}
+      env:
+        title: ${{ github.event.pull_request.title }}
+      run: |
+        IS_RELEASE=${{ contains(env.title, '[Release]')}}
+        HAS_RELEASE_TAG=${{ contains(github.event.pull_request.labels.*.name, 'release')}}
+        if [[ "$IS_RELEASE" == "true" && $HAS_RELEASE_TAG == "false" ]]
+        then
+            exit 1
+        else
+            exit 0
+        fi
+    - name: NO-TICKET PR has no-ticket tag
+      if: ${{ always() }}
+      env:
+        title: ${{ github.event.pull_request.title }}
+      run: |
+        IS_NO_TICKET=${{ contains(env.title, '[NO-TICKET]')}}
+        HAS_NO_TICKET_TAG=${{ contains(github.event.pull_request.labels.*.name, 'no-ticket')}}
+        if [[ "$IS_NO_TICKET" == "true" && $HAS_NO_TICKET_TAG == "false" ]]
+        then
+            exit 1
+        else
+            exit 0
+        fi

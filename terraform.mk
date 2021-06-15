@@ -260,6 +260,9 @@ default: fmt validate
 ###
 TF_ARGS_INIT = $(BACKEND_TERRAFORM_INIT_ARGS)
 
+version:
+	$(TERRAFORM) version
+
 # force re-initialization of terraform state
 force-init: backend.tf install-community-plugins before-init clean-state .tf-init
 	@$(MAKE) ensure-workspace
