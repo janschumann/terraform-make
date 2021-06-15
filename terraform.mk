@@ -288,7 +288,7 @@ list-configured-workspaces:
 	@find . -name "$(ACCOUNT)-*.tfvars" | grep -v default | awk -F'-' '{print $$2}' | sed 's/.tfvars//' | sort -u
 
 # list workspaces that exist in backend
-list-existing-workspaces: init
+list-existing-workspaces: session init
 	@echo "$(YELLOW)Workspaces created for $(GREEN)$(ACCOUNT)$(NC)$(YELLOW):$(NC)"
 	@$(TERRAFORM) workspace list | grep -v default | sed 's/* //' | sort -u
 
