@@ -26,4 +26,28 @@ export TF_MAKE_CLONE_URL=https://github.com/janschumann/terraform-make.git
 export TF_MAKE_PATH=.terraform-make
 ```
 
+### Tools
+
+#### Oh-my-zsh plugin
+
+- activate custom oh my zsh folder if not already done: see env variable `ZSH_CUSTOM` in `.zsh.rc`
+- copy the plugin code to the plugin dir 
+```bash 
+$ cp tools/zsh-plugin $ZSH_CUSTOM/plugins/project
+```
+- define a plugin for each of your projects 
+```bash
+# $ZSH_CUSTOM/plugins/project-foo/project-foo.plugin.zsh
+export FOO_IAM_ROLE="AccountAdministrator"
+# this is optional if you use the same lib for each project
+#export FOO_INFRA_HOME="path to terraform lib"
+export FOO_IAM_USER="some.user"
+# optional 1password integration
+#export FOO_MFA_TOKEN_CMD="op-otp-token.sh thetoken"
+```
+- restart the shell
+- try it out 
+```bash
+$ project-infra-init foo
+```
 

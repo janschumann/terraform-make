@@ -124,7 +124,7 @@ if [[ -z $CREATE_DATE || $EXPIRE_SOON -lt $DATE ]]; then
     aws --profile ${PROFILE} iam delete-access-key --access-key-id ${ACCESS_KEY_ID} --user-name ${USER}
     exit 2
   else
-    echo -e "${YELLOW}Your key will expire on ${RED}${EXPIRE}${YELLOW}. Please create a new one today!${NC}"
+    echo -e "${YELLOW}Your key will expire on ${RED}$(date -d @${EXPIRE})${YELLOW}. Please create a new one today!${NC}"
   fi
 fi
 
