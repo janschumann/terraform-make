@@ -21,15 +21,20 @@ function project-infra-init() {
   lib_path=${2:-$DEFAULT_MAKE_LIB_HOME}
 
   unset AWS_ROLE_NAME
+  unset AWS_SESSION_TYPE
   unset TERRAFORM_INFRA_HOME
   unset AWS_MFA_TOKEN_CMD
 
   eval AWS_ROLE_NAME='$'${project:u}_IAM_ROLE
+  eval AWS_SESSION_TYPE='$'${project:u}_SESSION_TYPE
   eval TERRAFORM_INFRA_HOME='$'${project:u}_INFRA_HOME
   eval AWS_MFA_TOKEN_CMD='$'${project:u}_MFA_TOKEN_CMD
 
   if [[ -n $AWS_ROLE_NAME ]]; then
     export AWS_ROLE_NAME=$AWS_ROLE_NAME
+  fi
+  if [[ -n $AWS_SESSION_TYPE ]]; then
+    export AWS_SESSION_TYPE=$AWS_SESSION_TYPE
   fi
   if [[ -n $TERRAFORM_INFRA_HOME ]]; then
     export TERRAFORM_INFRA_HOME=$TERRAFORM_INFRA_HOME

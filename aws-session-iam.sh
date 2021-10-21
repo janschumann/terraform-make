@@ -29,7 +29,7 @@ while getopts "o:t:r:p:v" opt; do
         ROLE=$OPTARG
         ;;
     p)
-        TO_PROFILE="${ORG}-${OPTARG}"
+        TO_PROFILE=$OPTARG
         ;;
     v)
         VERBOSE=true

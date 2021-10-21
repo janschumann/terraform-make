@@ -24,6 +24,7 @@ function show-all-files() {
 export DEFAULT_MAKE_LIB_HOME=$HOME/Development/Projects/schumann-it/terraform-make-lib
 
 export DEFAULT_IAM_ROLE="AccountAdministrator"
+export DEFAULT_SESSION_TYPE="iam"
 export DEFAULT_INFRA_HOME="$HOME/Development/Projects/schumann-it/terraform"
 export DEFAULT_IAM_USER="jan.schumann"
 export DEFAULT_MFA_TOKEN_CMD=""
