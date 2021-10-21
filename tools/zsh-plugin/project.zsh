@@ -27,11 +27,15 @@ function project-infra-init() {
 
   eval AWS_ROLE_NAME='$'${project:u}_IAM_ROLE
   eval AWS_SESSION_TYPE='$'${project:u}_SESSION_TYPE
+  eval AWS_SSO_START_URL='$'${project:u}_SSO_START_URL
   eval TERRAFORM_INFRA_HOME='$'${project:u}_INFRA_HOME
   eval AWS_MFA_TOKEN_CMD='$'${project:u}_MFA_TOKEN_CMD
 
   if [[ -n $AWS_ROLE_NAME ]]; then
     export AWS_ROLE_NAME=$AWS_ROLE_NAME
+  fi
+  if [[ -n $AWS_SSO_START_URL ]]; then
+    export AWS_SSO_START_URL=$AWS_SSO_START_URL
   fi
   if [[ -n $AWS_SESSION_TYPE ]]; then
     export AWS_SESSION_TYPE=$AWS_SESSION_TYPE
@@ -123,4 +127,16 @@ function project-account-infra() {
 
   cd $TERRAFORM_INFRA_HOME/terraform-workspace-account
   make VAR_FILE=${account}-${environment}.tfvars ${actions}
+}
+
+function infra-plan() {
+  make VAR_FILE=$1 fmt force-plan
+}
+
+function infra-apply() {
+  make VAR_FILE=$1 apply
+}
+
+function infra-output() {
+  make VAR_FILE=$1 output
 }
