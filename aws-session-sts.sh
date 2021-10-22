@@ -45,7 +45,7 @@ while getopts "o:t:r:p:v" opt; do
   esac
 done
 
-echo -e "Getting session in ${YELLOW}${TO_PROFILE}${NC} for ${YELLOW}${ROLE}${NC}"
+echo -e "Getting session for ${YELLOW}${TO_PROFILE}${NC}"
 
 if test -z "${ORG}"; then
   help
