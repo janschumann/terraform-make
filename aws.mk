@@ -156,10 +156,14 @@ reset-iam-config: verify-aws verify-account-id
 account-config: account-config-$(AWS_SESSION_TYPE)
 
 account-config-sts: verify-aws verify-account-id
+	@$(shell $(TERRAFORM_MAKE_LIB_HOME)/aws-remove-profile.sh $(AWS_PROFILE))
 	@$(AWS) --profile $(AWS_PROFILE) configure set account_id $(ACCOUNT_ID)
 	@$(AWS) --profile $(AWS_PROFILE) configure set region $(REGION)
 
 account-config-sso: account-config-sts verify-aws-sso
+	@$(shell $(TERRAFORM_MAKE_LIB_HOME)/aws-remove-profile.sh $(AWS_PROFILE))
+	@$(AWS) --profile $(AWS_PROFILE) configure set account_id $(ACCOUNT_ID)
+	@$(AWS) --profile $(AWS_PROFILE) configure set region $(REGION)
 	@$(AWS) --profile $(AWS_PROFILE) configure set sso_start_url $(AWS_SSO_START_URL)
 	@$(AWS) --profile $(AWS_PROFILE) configure set sso_region $(REGION)
 	@$(AWS) --profile $(AWS_PROFILE) configure set sso_account_id $(ACCOUNT_ID)
