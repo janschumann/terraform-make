@@ -29,7 +29,7 @@ while getopts "o:t:r:p:v" opt; do
         ROLE=$OPTARG
         ;;
     p)
-        TO_PROFILE="${ORG}-${OPTARG}"
+        TO_PROFILE=$OPTARG
         ;;
     v)
         VERBOSE=true
@@ -45,7 +45,7 @@ while getopts "o:t:r:p:v" opt; do
   esac
 done
 
-echo -e "Getting session in ${YELLOW}${TO_PROFILE}${NC} for ${YELLOW}${ROLE}${NC}"
+echo -e "Getting session for ${YELLOW}${TO_PROFILE}${NC}"
 
 if test -z "${ORG}"; then
   help
@@ -124,7 +124,7 @@ if [[ -z $CREATE_DATE || $EXPIRE_SOON -lt $DATE ]]; then
     aws --profile ${PROFILE} iam delete-access-key --access-key-id ${ACCESS_KEY_ID} --user-name ${USER}
     exit 2
   else
-    echo -e "${YELLOW}Your key will expire on ${RED}${EXPIRE}${YELLOW}. Please create a new one today!${NC}"
+    echo -e "${YELLOW}Your key will expire on ${RED}$(date -d @${EXPIRE})${YELLOW}. Please create a new one today!${NC}"
   fi
 fi
 

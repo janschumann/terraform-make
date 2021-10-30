@@ -260,6 +260,9 @@ default: fmt validate
 ###
 TF_ARGS_INIT = $(BACKEND_TERRAFORM_INIT_ARGS)
 
+version:
+	$(TERRAFORM) version
+
 # force re-initialization of terraform state
 force-init: backend.tf install-community-plugins before-init clean-state .tf-init
 	@$(MAKE) ensure-workspace
@@ -272,11 +275,11 @@ update-modules:
 	$(TERRAFORM) get -update=true
 
 # create a new workspace
-create-workspace: init
+create-workspace: session init
 	@$(TERRAFORM) workspace select $(ENVIRONMENT) &> /dev/null || $(TERRAFORM) workspace new $(ENVIRONMENT)
 
 # ensure workspace selected
-ensure-workspace: init
+ensure-workspace: session init
 	@if [ "$(shell $(TERRAFORM) workspace show)" != "$(ENVIRONMENT)" ]; then $(TERRAFORM) workspace select $(ENVIRONMENT)  || $(TERRAFORM) workspace new $(ENVIRONMENT); fi
 
 # list configured workspaces
@@ -285,7 +288,7 @@ list-configured-workspaces:
 	@find . -name "$(ACCOUNT)-*.tfvars" | grep -v default | awk -F'-' '{print $$2}' | sed 's/.tfvars//' | sort -u
 
 # list workspaces that exist in backend
-list-existing-workspaces: init
+list-existing-workspaces: session init
 	@echo "$(YELLOW)Workspaces created for $(GREEN)$(ACCOUNT)$(NC)$(YELLOW):$(NC)"
 	@$(TERRAFORM) workspace list | grep -v default | sed 's/* //' | sort -u
 
@@ -324,6 +327,13 @@ plan: check-plan-missing ensure-workspace validate before-state-modification
 	@echo "$(GREEN)Plan created at $(YELLOW)$(PLAN_OUT)$(GREEN) and made current.$(NC)"
 	@echo "$(GREEN)Apply with 'make apply'$(NC)"
 	@echo "$(GREEN)Dismiss with 'make dismiss-plan'$(NC)"
+
+plan-json: check-plan-exists ensure-workspace validate
+	$(TERRAFORM) show -json $(CURRENT_PLAN_FILE) | jq -r '( [.resource_changes[]?.change.actions?] | flatten ) | { "create":(map(select(.=="create")) | length), "update":(map(select(.=="update")) | length), "delete":(map(select(.=="delete")) | length) }' > $(CURRENT_PLAN_FILE).json
+
+plan-target:
+	#$(TERRAFORM) plan $(TF_ARGS_PLAN) -out=$(PLAN_OUT) -target $(PLAN_TARGET)
+	@echo $(PLAN_OUT)
 
 # force create new plan
 force-plan: dismiss-plan plan
