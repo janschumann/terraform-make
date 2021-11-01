@@ -1,0 +1,6 @@
+export EXAMPLE_INFRA_HOME="$HOME/Development/Projects/example/devops"
+export EXAMPLE_IAM_ROLE="AccountAdministrator"
+export EXAMPLE_IAM_USER="user.example"
+export EXAMPLE_SESSION_TYPE="sso"
+export EXAMPLE_SESSION_DURATION="1hour"
+export EXAMPLE_SSO_START_URL="https://example.awsapps.com/start#/"

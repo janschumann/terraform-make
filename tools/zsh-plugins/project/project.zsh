@@ -21,15 +21,30 @@ function project-infra-init() {
   lib_path=${2:-$DEFAULT_MAKE_LIB_HOME}
 
   unset AWS_ROLE_NAME
-  unset TERRAFORM_INFRA_HOME
+  unset AWS_SESSION_TYPE
+  unset AWS_SESSION_DURATION
+  unset AWS_SSO_START_URL
   unset AWS_MFA_TOKEN_CMD
+  unset TERRAFORM_INFRA_HOME
 
   eval AWS_ROLE_NAME='$'${project:u}_IAM_ROLE
-  eval TERRAFORM_INFRA_HOME='$'${project:u}_INFRA_HOME
+  eval AWS_SESSION_TYPE='$'${project:u}_SESSION_TYPE
+  eval AWS_SESSION_DURATION='$'${project:u}_SESSION_DURATION
+  eval AWS_SSO_START_URL='$'${project:u}_SSO_START_URL
   eval AWS_MFA_TOKEN_CMD='$'${project:u}_MFA_TOKEN_CMD
+  eval TERRAFORM_INFRA_HOME='$'${project:u}_INFRA_HOME
 
   if [[ -n $AWS_ROLE_NAME ]]; then
     export AWS_ROLE_NAME=$AWS_ROLE_NAME
+  fi
+  if [[ -n $AWS_SSO_START_URL ]]; then
+    export AWS_SSO_START_URL=$AWS_SSO_START_URL
+  fi
+  if [[ -n $AWS_SESSION_TYPE ]]; then
+    export AWS_SESSION_TYPE=$AWS_SESSION_TYPE
+  fi
+  if [[ -n $AWS_SESSION_DURATION ]]; then
+    export AWS_SESSION_DURATION=$AWS_SESSION_DURATION
   fi
   if [[ -n $TERRAFORM_INFRA_HOME ]]; then
     export TERRAFORM_INFRA_HOME=$TERRAFORM_INFRA_HOME
@@ -118,4 +133,16 @@ function project-account-infra() {
 
   cd $TERRAFORM_INFRA_HOME/terraform-workspace-account
   make VAR_FILE=${account}-${environment}.tfvars ${actions}
+}
+
+function infra-plan() {
+  make VAR_FILE=$1 fmt force-plan
+}
+
+function infra-apply() {
+  make VAR_FILE=$1 apply
+}
+
+function infra-output() {
+  make VAR_FILE=$1 output
 }

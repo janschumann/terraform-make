@@ -64,9 +64,14 @@ endif
 
 AWS_ROLE_NAME ?= $(AWS_DEFAULT_ROLE_NAME)
 
+# aws session type (sts or sso)
+AWS_SESSION_TYPE ?= sts
+AWS_SSO_SESSION_DURATION ?= 1hour
+
 ifeq ($(IS_DEPLOYMENT),true)
 	AWS_PROFILE ?=
 	AWS_PROFILE_ARG ?=
+	AWS_SESSION_TYPE := none
 else
 	AWS_PROFILE := $(ORGANISATION)-$(ACCOUNT)-$(ENVIRONMENT)-$(AWS_ROLE_NAME)
 	AWS_PROFILE_ARG := --profile $(AWS_PROFILE)
@@ -74,10 +79,6 @@ endif
 PROVIDER_TERRAFORM_ARGS = -var 'default_profile=$(AWS_PROFILE)'
 
 MIN_SESSION_AGE ?= 15
-
-# aws session type (sts or sso)
-AWS_SESSION_TYPE ?= sts
-AWS_SSO_SESSION_DURATION ?= 1hour
 
 DATE_CMD = $(shell command -v date 2> /dev/null)
 RESET_DATE = $(shell $(DATE_CMD) --utc --date "2000-01-01T00:00:00Z" +"%s")
@@ -140,6 +141,9 @@ reset-session: account-config-$(AWS_SESSION_TYPE)
 
 reset-account-config: reset-session
 
+access-none-$(AWS_ROLE_NAME):
+	@echo "Skipping session validation. Using Env or OIDC session."
+
 access-sso-$(AWS_ROLE_NAME):
 	@if [ "1" = "$(IS_EXPIRED)" ]; then $(AWS) --profile $(AWS_PROFILE) sso login; fi
 	@$(AWS) --profile $(AWS_PROFILE) configure set aws_session_expiration $(shell $(DATE_CMD) --utc --date "+$(AWS_SSO_SESSION_DURATION)" +"%s")
@@ -154,6 +158,9 @@ reset-iam-config: verify-aws verify-account-id
 	@$(AWS) --profile $(ORGANISATION)-iam configure set region $(REGION)
 
 account-config: account-config-$(AWS_SESSION_TYPE)
+
+account-config-none:
+	@echo "Skipping account config. Using Env or OIDC session."
 
 account-config-sts: verify-aws verify-account-id
 	@$(shell $(TERRAFORM_MAKE_LIB_HOME)/aws-remove-profile.sh $(AWS_PROFILE))
