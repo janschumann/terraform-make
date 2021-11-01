@@ -23,7 +23,7 @@ The following environment variables can be used to adjust repo and install path
 ```bash
 export TF_MAKE_BRANCH=master
 export TF_MAKE_CLONE_URL=https://github.com/janschumann/terraform-make.git
-export TF_MAKE_PATH=.terraform-make
+export TF_MAKE_PATH=${HOME}/.terraform-make
 ```
 
 ### Tools
@@ -33,21 +33,25 @@ export TF_MAKE_PATH=.terraform-make
 - activate custom oh my zsh folder if not already done: see env variable `ZSH_CUSTOM` in `.zsh.rc`
 - copy the plugin code to the plugin dir 
 ```bash 
-$ cp tools/zsh-plugin $ZSH_CUSTOM/plugins/project
+$ cp tools/zsh-plugins/project $ZSH_CUSTOM/plugins/project
 ```
-- define a plugin for each of your projects 
+- copy the example plugin code to the plugin dir
+```bash 
+$ cp tools/zsh-plugins/project-example $ZSH_CUSTOM/plugins/project-<project_name>
+```
+- define project params 
 ```bash
 # $ZSH_CUSTOM/plugins/project-foo/project-foo.plugin.zsh
-export FOO_IAM_ROLE="AccountAdministrator"
-# this is optional if you use the same lib for each project
-#export FOO_INFRA_HOME="path to terraform lib"
-export FOO_IAM_USER="some.user"
-# optional 1password integration
-#export FOO_MFA_TOKEN_CMD="op-otp-token.sh thetoken"
+export EXAMPLE_INFRA_HOME="$HOME/Development/Projects/example/devops"
+export EXAMPLE_IAM_ROLE="AccountAdministrator"
+export EXAMPLE_IAM_USER="user.example"
+export EXAMPLE_SESSION_TYPE="sso"
+export EXAMPLE_SESSION_DURATION="1hour"
+export EXAMPLE_SSO_START_URL="https://example.awsapps.com/start#/"
 ```
 - restart the shell
 - try it out 
 ```bash
-$ project-infra-init foo
+$ project-infra-init project-foo
 ```
 
