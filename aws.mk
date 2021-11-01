@@ -62,6 +62,7 @@ else
 	REGION ?= $(VAR_FILE_REGION)
 endif
 
+AWS_DEFAULT_ROLE_NAME := None
 AWS_ROLE_NAME ?= $(AWS_DEFAULT_ROLE_NAME)
 
 # aws session type (sts or sso)
@@ -110,7 +111,6 @@ verify-aws: warn-env-credentials
 	@if [ -z "$(ORGANISATION)" ]; then echo "$(RED)Please define an ORGANISATION$(NC)"; exit 1; fi
 	@if [ -z "$(ACCOUNT)" ]; then echo "$(RED)Please define an ACCOUNT$(NC)"; exit 1; fi
 	@if [ -z "$(ENVIRONMENT)" ]; then echo "$(RED)Please define an ENVIRONMENT$(NC)"; exit 1; fi
-	@if [ -z "$(AWS_ROLE_NAME)" ]; then echo "$(RED)Please define an AWS_ROLE_NAME$(NC)"; exit 1; fi
 	@command -v $(AWS) > /dev/null || echo "$(RED)aws cli not installed$(NC)"
 
 verify-aws-sso: verify-aws
